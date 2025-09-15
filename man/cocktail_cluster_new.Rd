@@ -2,7 +2,7 @@
 % Please edit documentation in R/cocktail_cluster_new.R
 \name{cocktail_cluster_new}
 \alias{cocktail_cluster_new}
-\title{Cocktail clustering (sparse, parity with original, bounded merges)}
+\title{Cocktail clustering (sparse, parity with original, bounded merges; robust IDs)}
 \usage{
 cocktail_cluster_new(
   vegmatrix,
@@ -43,4 +43,6 @@ Each round uses a single sparse crossproduct to compute co-occurrences and
 Ties are ordered to match the lower-triangle "dist" indexing. When the
 current max φ is nonpositive, an optional fallback evaluates the round
 with vegan::designdist for exact parity (including a=0 pairs).
+Importantly, this version records merges using \strong{tracked indices} instead
+of name matching, so the first merge cannot drift even with tricky names.
 }

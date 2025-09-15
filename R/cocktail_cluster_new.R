@@ -1,4 +1,4 @@
-#' Cocktail clustering (sparse, parity with original, bounded merges)
+#' Cocktail clustering (sparse, parity with original, bounded merges; robust IDs)
 #'
 #' Runs the Cocktail hierarchical agglomeration on a plots x species matrix.
 #' Each round uses a single sparse crossproduct to compute co-occurrences and
@@ -6,6 +6,8 @@
 #' Ties are ordered to match the lower-triangle "dist" indexing. When the
 #' current max φ is nonpositive, an optional fallback evaluates the round
 #' with vegan::designdist for exact parity (including a=0 pairs).
+#' Importantly, this version records merges using **tracked indices** instead
+#' of name matching, so the first merge cannot drift even with tricky names.
 #'
 #' @param vegmatrix Numeric matrix or data.frame; plots in rows, species in columns.
 #' @param binarize Logical; convert to presence/absence (default TRUE).
@@ -182,6 +184,14 @@ cocktail_cluster_new <- function(
   ## ---- working state ----
   X         <- X0
   col_names <- colnames(X0); if (is.null(col_names)) col_names <- species
+
+  # NEW: robust ID tracking (no name matching)
+  # For each current column:
+  #   - col_species_idx > 0 means it's an original species with that 1..n index
+  #   - col_cluster_idx > 0 means it's a cluster with that index (i)
+  col_species_idx <- seq_len(n)   # species indices for initial columns
+  col_cluster_idx <- integer(n)   # zeros initially (not clusters yet)
+
   i <- 0L
 
   pb <- if (isTRUE(progress)) utils::txtProgressBar(min = 0, max = n - 1L, style = 3) else NULL
@@ -229,36 +239,35 @@ cocktail_cluster_new <- function(
       i <- i + 1L
       Cluster.height[i] <- maxres$max_phi
 
-      # left element
-      left_name <- col_names[e1[jj]]
-      if (startsWith(left_name, "c_")) {
-        cl1 <- as.integer(sub("c_", "", left_name))
+      # left element → record species/cluster IDs from tracked indices
+      if (col_cluster_idx[e1[jj]] > 0L) {
+        cl1 <- col_cluster_idx[e1[jj]]
         Cluster.merged[i, 1L] <- cl1
         Cluster.species[i, Cluster.species[cl1, ] == 1L] <- 1L
       } else {
-        f1 <- match(left_name, species)
+        f1 <- col_species_idx[e1[jj]]   # guaranteed correct original index
         Cluster.merged[i, 1L] <- -f1
         Cluster.species[i, f1] <- 1L
       }
 
       # right element
-      right_name <- col_names[e2[jj]]
-      if (startsWith(right_name, "c_")) {
-        cl2 <- as.integer(sub("c_", "", right_name))
+      if (col_cluster_idx[e2[jj]] > 0L) {
+        cl2 <- col_cluster_idx[e2[jj]]
         Cluster.merged[i, 2L] <- cl2
         Cluster.species[i, Cluster.species[cl2, ] == 1L] <- 1L
       } else {
-        f2 <- match(right_name, species)
+        f2 <- col_species_idx[e2[jj]]
         Cluster.merged[i, 2L] <- -f2
         Cluster.species[i, f2] <- 1L
       }
 
-      # assign new cluster name to both fused columns (NAME-BASED, across all columns)
+      # assign new cluster name to both fused columns (NAME-BASED, like original)
       newc <- paste0("c_", i)
       old1 <- col_names[e1[jj]]
       old2 <- col_names[e2[jj]]
       col_names[col_names == old1] <- newc
       col_names[col_names == old2] <- newc
+      # (ID vectors are updated during the rebuild step below)
 
       # k
       k <- sum(Cluster.species[i, ])
@@ -292,11 +301,20 @@ cocktail_cluster_new <- function(
           Matrix::Matrix(Plot.cluster[, kid] > 0L, sparse = TRUE)
         }))
         colnames(newcols) <- paste0("c_", index.e)
+
+        # bind new columns; update names
         X <- cbind(X[, -drop_cols, drop = FALSE], newcols)
         col_names <- c(col_names[-drop_cols], colnames(newcols))
+
+        # --- UPDATE ID VECTORS (critical for correct Cluster.merged recording) ---
+        col_species_idx <- c(col_species_idx[-drop_cols], rep.int(0L, length(index.e)))
+        col_cluster_idx <- c(col_cluster_idx[-drop_cols], index.e)
       } else {
         X <- X[, -drop_cols, drop = FALSE]
         col_names <- col_names[-drop_cols]
+
+        col_species_idx <- col_species_idx[-drop_cols]
+        col_cluster_idx <- col_cluster_idx[-drop_cols]
       }
     }
 
@@ -304,10 +322,10 @@ cocktail_cluster_new <- function(
     if (i > 0L && sum(Plot.cluster[, i]) == N) {
       for (jj in (i + 1L):(n - 1L)) {
         g1 <- ncol(X)
-        cl1 <- as.integer(sub("c_", "", col_names[g1]))
+        cl1 <- col_cluster_idx[g1]
         Cluster.merged[jj, 1L] <- cl1
         g2 <- 1L
-        cl2 <- as.integer(sub("c_", "", col_names[g2]))
+        cl2 <- col_cluster_idx[g2]
         Cluster.merged[jj, 2L] <- cl2
         Cluster.height[jj] <- 0
         Plot.cluster[, jj] <- 1L
@@ -315,12 +333,19 @@ cocktail_cluster_new <- function(
         Cluster.info[jj, 2L] <- 1L
         Cluster.species[jj, Cluster.species[cl1, ] == 1L] <- 1L
         Cluster.species[jj, Cluster.species[cl2, ] == 1L] <- 1L
+
         newc <- Matrix::Matrix(Plot.cluster[, jj] > 0L, sparse = TRUE)
         colnames(newc) <- paste0("c_", jj)
         X <- cbind(X, newc)
         X <- X[, -c(g1, g2), drop = FALSE]
         col_names <- c(col_names, colnames(newc))
         col_names <- col_names[-c(g1, g2)]
+
+        # update ID vectors for tail
+        col_species_idx <- c(col_species_idx, 0L)
+        col_species_idx <- col_species_idx[-c(g1, g2)]
+        col_cluster_idx <- c(col_cluster_idx, jj)
+        col_cluster_idx <- col_cluster_idx[-c(g1, g2)]
       }
       i <- n - 1L
     }

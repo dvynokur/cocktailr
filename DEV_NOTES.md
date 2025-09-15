@@ -35,3 +35,8 @@ remove.packages("cocktailr", lib = .libPaths()[1])
 unlink(file.path(.libPaths()[1], "cocktailr"), recursive = TRUE, force = TRUE)
 unlink(file.path(.libPaths()[1], "00LOCK*"), recursive = TRUE, force = TRUE)
 
+
+#git
+system("git add .")
+system('git commit -m "your message"')
+system("git push")
