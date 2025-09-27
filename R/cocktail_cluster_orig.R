@@ -4,7 +4,7 @@
 #' matrix. Converts to presence/absence by default, computes phi-based merges,
 #' and determines the per-cluster m using expected vs. observed frequencies.
 #'
-#' @inheritParams cocktail_cluster
+#' @inheritParams cocktail_cluster_new
 #' @return A list (class "cocktail") with:
 #' \itemize{
 #'   \item Cluster.species  (clusters x species 0/1)
@@ -25,7 +25,7 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
   out
 }
 
-# --- internal helpers (original formulas) ---------------------------------
+# --- internal helpers ---------------------------------
 
 .Expected.plot.freq_orig <- function(species_in_cluster, p_freq, q_freq) {
   k <- length(species_in_cluster)
@@ -64,7 +64,7 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
   m
 }
 
-# --- internal: clustering core (original loop) -----------------------------
+# --- internal: clustering core -----------------------------
 
 .cocktail_core_orig <- function(V_pa, progress = TRUE) {
   N <- nrow(V_pa); n <- ncol(V_pa)
@@ -105,7 +105,6 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
       e2[j] <- allmax[j] - elements.per.col[e1[j]] + e1[j]
     }
 
-    # remove circular fusions
     compare1 <- as.vector(t(as.matrix(cbind(e1, e2))))
     if (anyDuplicated(compare1) > 2) {
       keep <- rep(TRUE, multiple.max)
@@ -125,7 +124,6 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
       i <- i + 1L
       Cluster.height[i] <- phi.index[allmax][j]
 
-      # left
       if (substr(colnames(veg2)[e1[j]], 1, 2) == "c_") {
         cl1 <- as.integer(strsplit(colnames(veg2)[e1[j]], "_")[[1]][2])
         Cluster.merged[i, 1] <- cl1
@@ -136,7 +134,6 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
         Cluster.species[i, f1] <- 1L
       }
 
-      # right
       if (substr(colnames(veg2)[e2[j]], 1, 2) == "c_") {
         cl2 <- as.integer(strsplit(colnames(veg2)[e2[j]], "_")[[1]][2])
         Cluster.merged[i, 2] <- cl2
@@ -175,7 +172,9 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
     for (jj in seq_along(index.e)) {
       colnames(veg2)[n2 - length(index.e) + jj] <- paste0("c_", index.e[jj])
     }
-    if (n2 == 2L) colnames(veg2)[1] <- name.last.cluster
+    if (n2 == 2L && length(name.last.cluster) == 1L) {
+      colnames(veg2)[1] <- name.last.cluster
+    }
 
     if (sum(Plot.cluster[, i]) == N) {
       for (j in (i + 1L):(n - 1L)) {

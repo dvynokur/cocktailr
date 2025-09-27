@@ -2,20 +2,38 @@
 % Please edit documentation in R/cocktail_fuzzy.R
 \name{cocktail_fuzzy}
 \alias{cocktail_fuzzy}
-\title{Fuzzy Cocktail memberships (no thresholding)}
+\title{Fuzzy Cocktail memberships (species vs all internal nodes)}
 \usage{
-cocktail_fuzzy(x, vegmatrix, cuts = 0.3)
+cocktail_fuzzy(x, vegmatrix)
 }
 \arguments{
-\item{x}{Result of \code{cocktail_cluster()}.}
+\item{x}{Cocktail result (must contain \code{Cluster.species}, \code{Cluster.merged},
+\code{Cluster.height}, \code{Plot.cluster}, and carry \code{species} and \code{plots} names).}
 
-\item{vegmatrix}{plots x species cover (numeric); used to get p/a for phi.}
-
-\item{cuts}{numeric vector of phi cuts that define the parent groups (e.g., c(0.2,0.25,0.3)).}
+\item{vegmatrix}{A plots-by-species numeric matrix used at clustering time
+(or the same grid). Values > 0 are treated as presence; \code{NA} is set to 0.
+Row names (plots) and column names (species) are used to align with \code{x}.}
 }
 \value{
-data.frame with columns: cut, group, species, phi
+A numeric matrix of size (species × nodes) with columns named
+\code{"c_<node_id>"}.
 }
 \description{
-Fuzzy Cocktail memberships (no thresholding)
+Compute a species-by-nodes matrix of \eqn{\phi} association coefficients for
+\strong{all} internal nodes (clusters) in a fitted Cocktail tree. Group membership
+per node is taken from \code{x$Plot.cluster}, while species occurrences come
+from \code{vegmatrix} after binarization (> 0 becomes 1; \code{NA} is 0).
+}
+\details{
+\itemize{
+\item The function aligns rows/columns to the plots and species stored in \code{x}.
+Extra plots in \code{vegmatrix} are ignored; extra species with any nonzero
+values cause an error (to avoid mismatched inputs).
+\item The \eqn{\phi} for every (species, node) pair is computed from the
+2×2 table formed by species presence and node membership across plots.
+Invalid or zero denominators yield \eqn{\phi}=0.
+}
+}
+\seealso{
+\code{\link[=assign_releves]{assign_releves()}}, \code{\link[=species_in_clusters]{species_in_clusters()}}
 }

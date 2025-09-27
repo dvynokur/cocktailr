@@ -7,7 +7,7 @@
 cocktail_cluster_orig(veg, to_pa = TRUE, progress = interactive())
 }
 \arguments{
-\item{progress}{logical; show a text progress bar (default TRUE).}
+\item{progress}{Logical; show a text progress bar (default \code{TRUE}).}
 }
 \value{
 A list (class "cocktail") with:

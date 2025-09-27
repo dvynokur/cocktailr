@@ -1,98 +1,123 @@
-#' Cocktail clustering (sparse, parity with original, bounded merges; robust IDs)
+#' Cocktail clustering (sparse matrix)
 #'
-#' Runs the Cocktail hierarchical agglomeration on a plots x species matrix.
-#' Each round uses a single sparse crossproduct to compute co-occurrences and
-#' φ from (a,b,c,d) via the same (ad−bc)/sqrt(...) form as vegan::designdist.
-#' Ties are ordered to match the lower-triangle "dist" indexing. When the
-#' current max φ is nonpositive, an optional fallback evaluates the round
-#' with vegan::designdist for exact parity (including a=0 pairs).
-#' Importantly, this version records merges using **tracked indices** instead
-#' of name matching, so the first merge cannot drift even with tricky names.
+#' Fast Cocktail agglomeration for a **plots × species** table.
 #'
-#' @param vegmatrix Numeric matrix or data.frame; plots in rows, species in columns.
-#' @param binarize Logical; convert to presence/absence (default TRUE).
-#' @param progress Logical; show a text progress bar (default TRUE).
-#' @param fallback_when_nonpos Logical; if TRUE, when max φ ≤ 0 compute that round
-#'   with vegan::designdist for exact parity. Default TRUE.
-#' @param fallback_max_cols Integer; only use the fallback if the current number
-#'   of columns is ≤ this value (prevents stalls on huge rounds). Default 600.
+#' @description
+#' This implementation:
+#' - **Binarizes** the input: values > 0 become 1; values ≤ 0 or `NA` become 0.
+#' - **Drops empty species** (all-zero columns) before clustering.
+#' - Computes the association coefficient (“phi”) each round from one sparse
+#'   crossproduct for speed and exactness.
+#' - Uses a **fixed, reproducible tie order**: when several pairs share the same
+#'   maximum phi at a step, they are processed in the same order that R fills the
+#'   lower-triangular distance matrix (scan by increasing column, then row).
 #'
-#' @return A list of class \code{"cocktail"} with:
+#' @param vegmatrix A matrix or data frame with **plots in rows** and **species in columns**.
+#' @param progress  Logical; show a text progress bar (default `TRUE`).
+#'
+#' @return
+#' A list of class `"cocktail"` with:
 #' \itemize{
-#'   \item \code{Cluster.species}: (n-1) x n integer matrix; species membership per cluster
-#'   \item \code{Cluster.info}:   (n-1) x 2 integer matrix; columns \code{k} (size), \code{m} (min spp per plot)
-#'   \item \code{Plot.cluster}:    N x (n-1) integer matrix; plot assignment per cluster
-#'   \item \code{Cluster.merged}:  (n-1) x 2 integer matrix; negative = species id, positive = cluster id
-#'   \item \code{Cluster.height}:  numeric vector of length n-1; phi at which each merge formed
-#'   \item \code{species}, \code{plots}: character vectors with names from input
+#'   \item `Cluster.species` — integer matrix (n_merges × n_species): species membership per merge.
+#'   \item `Cluster.merged`  — integer matrix (n_merges × 2): left/right children per merge
+#'         (negative = original species index; positive = earlier merge index).
+#'   \item `Cluster.height`  — numeric vector length n_merges: phi at each merge.
+#'   \item `Plot.cluster`    — integer matrix (n_plots × n_merges): plot membership per merge.
+#'   \item `species`         — character vector of species names kept after cleaning.
+#'   \item `plots`           — character vector of plot names.
 #' }
+#'
+#' @details
+#' Binarization and removal of empty species happen internally and only affect the
+#' set of columns that contribute to clustering. All returned components are aligned
+#' to the species that had at least one presence after cleaning.
+#'
+#' @seealso \code{\link{plot_cocktail}}, \code{\link{cocktail_fuzzy}}, \code{\link{assign_releves}}
+#'
+#' @examples
+#' vm <- matrix(c(1,0,1,
+#'                0,1,0,
+#'                1,1,0),
+#'              nrow = 3, byrow = TRUE,
+#'              dimnames = list(paste0("plot", 1:3),
+#'                              c("sp1","sp2","sp3")))
+#' res <- cocktail_cluster_new(vm, progress = FALSE)
+#' names(res)
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
-#' @importFrom vegan designdist
 #' @export
+
 cocktail_cluster_new <- function(
     vegmatrix,
-    binarize = TRUE,
-    progress = TRUE,
-    fallback_when_nonpos = TRUE,
-    fallback_max_cols = 600L
+    progress = TRUE
 ) {
-  ## ---- input checks and setup ----
+  ## ---- input checks & setup ----
   if (!is.matrix(vegmatrix) && !is.data.frame(vegmatrix)) {
     stop("vegmatrix must be a matrix or data.frame with plots in rows and species in columns.")
   }
   vm <- as.matrix(vegmatrix)
-  storage.mode(vm) <- "integer"
-  if (isTRUE(binarize)) vm[] <- as.integer(vm > 0L)
+
+  vm[is.na(vm)] <- 0
+  vm <- (vm > 0) * 1L
 
   plots   <- rownames(vm); if (is.null(plots))   plots   <- as.character(seq_len(nrow(vm)))
   species <- colnames(vm); if (is.null(species)) species <- as.character(seq_len(ncol(vm)))
 
+  # Drop empty species columns
+  keep <- colSums(vm) > 0L
+  dropped_species <- character(0)
+  if (!all(keep)) {
+    dropped_species <- species[!keep]
+    vm      <- vm[, keep, drop = FALSE]
+    species <- species[keep]
+  }
+
   N <- nrow(vm); n <- ncol(vm)
-  if (n < 2L) stop("Need at least 2 species (columns).")
+  if (n < 2L) stop("After dropping empty species, need at least 2 species (columns).")
   if (N < 1L) stop("Need at least 1 plot (row).")
 
-  # sparse working matrix (plots x species/clusters)
-  X0 <- Matrix::Matrix(vm, sparse = TRUE)  # dgCMatrix
+  # species-only sparse matrix
+  X0 <- Matrix::Matrix(vm, sparse = TRUE)  # dgCMatrix (0/1)
   rm(vm)
 
-  # global frequencies for Expected.plot.freq (original recursion)
+  # global frequencies for Expected.plot.freq (from original species)
   p.freq <- as.numeric(Matrix::colSums(X0)) / N
   q.freq <- 1 - p.freq
 
-  ## ---- helpers ----
+  ## ---- helpers -------------------------------------------------------------
+
   Expected.plot.freq_ <- function(species.in.cluster) {
-    No <- length(species.in.cluster)
-    Exp.no       <- array(0, No + 1L)
-    Exp.no.inter <- array(0, No + 1L)
-    Exp.no.inter[1L] <- 1
-    for (j in 1L:No) {
+    K <- length(species.in.cluster)
+    Exp <- array(0, K + 1L)
+    Exp_inter <- array(0, K + 1L)
+    Exp_inter[1L] <- 1
+    for (j in 1L:K) {
       s <- species.in.cluster[j]
-      Exp.no[1L] <- Exp.no.inter[1L] * q.freq[s]
+      Exp[1L] <- Exp_inter[1L] * q.freq[s]
       if (j > 1L) {
         for (k in 1L:(j - 1L)) {
-          Exp.no[k + 1L] <- Exp.no.inter[k]     * p.freq[s] +
-            Exp.no.inter[k + 1L] * q.freq[s]
+          Exp[k + 1L] <- Exp_inter[k]     * p.freq[s] +
+            Exp_inter[k + 1L] * q.freq[s]
         }
       }
-      Exp.no[j + 1L] <- Exp.no.inter[j] * p.freq[s]
-      for (k in 1L:(j + 1L)) Exp.no.inter[k] <- Exp.no[k]
+      Exp[j + 1L] <- Exp_inter[j] * p.freq[s]
+      for (k in 1L:(j + 1L)) Exp_inter[k] <- Exp[k]
     }
-    Exp.no
+    Exp
   }
 
   Compare.obs.exp.freq_ <- function(Obs.freq, Exp.freq) {
     Obs <- if (is.matrix(Obs.freq)) as.vector(Obs.freq[, 1L]) else as.vector(Obs.freq)
-    No <- length(Obs) - 1L
-    Cum.obs <- array(0, No + 1L)
-    Cum.exp <- array(0, No + 1L)
-    Cum.obs[No + 1L] <- Obs[No + 1L]
-    Cum.exp[No + 1L] <- Exp.freq[No + 1L]
+    K   <- length(Obs) - 1L
+    Cum.obs <- array(0, K + 1L)
+    Cum.exp <- array(0, K + 1L)
+    Cum.obs[K + 1L] <- Obs[K + 1L]
+    Cum.exp[K + 1L] <- Exp.freq[K + 1L]
     m <- 1L
     m.found <- -1L
-    if (Cum.obs[No + 1L] > Cum.exp[No + 1L]) { m <- No; m.found <- 0L }
-    for (j in No:1L) {
+    if (Cum.obs[K + 1L] > Cum.exp[K + 1L]) { m <- K; m.found <- 0L }
+    for (j in K:1L) {
       Cum.obs[j] <- Cum.obs[j + 1L] + Obs[j]
       if (m.found == -1L && Cum.obs[j] > 0) m.found <- 0L
       Cum.exp[j] <- Cum.exp[j + 1L] + Exp.freq[j]
@@ -101,98 +126,112 @@ cocktail_cluster_new <- function(
     m
   }
 
-  # lower-triangle "dist" index to mimic vegan's tie ordering (1-based i<j)
-  .dist_index_ <- function(i, j, m) (i - 1L) * m - ((i - 1L) * i) %/% 2L + (j - i)
-
-  # φ by sparse crossproduct (ad−bc form), with ties ordered like dist
-  phi_max_pairs_crossprod_ <- function(X) {
-    stopifnot(inherits(X, "dgCMatrix"))
-    N  <- nrow(X); m <- ncol(X)
-    if (m < 2L) return(list(max_phi = 0, pairs = matrix(integer(0), ncol = 2)))
-
-    p <- as.numeric(Matrix::colSums(X))
-
-    # all co-occurrences at once (symmetric; keep upper triangle only)
-    A <- Matrix::crossprod(X)      # dsCMatrix (upper triangle stored)
-    A <- Matrix::triu(A, k = 1L)   # drop diagonal
-    A <- as(A, "dgCMatrix")
-    if (length(A@x) == 0L) {
-      if (m >= 2L) return(list(max_phi = 0, pairs = cbind(e1 = 1L, e2 = 2L)))
-      return(list(max_phi = 0, pairs = matrix(integer(0), ncol = 2)))
-    }
-
-    # indices aligned with A@x (i<j by construction)
-    j_idx <- rep.int(seq_len(m), diff(A@p))
-    i_idx <- A@i + 1L
-    a     <- A@x
-
-    # exact counts as in vegan::designdist(abcd=TRUE)
-    b <- p[i_idx] - a
-    c <- p[j_idx] - a
-    d <- N - a - b - c
-
-    num <- a * d - b * c
-    den <- sqrt((a + b) * (c + d) * (a + c) * (b + d))
-    den[den == 0] <- NA_real_
-
-    phi <- num / den
-    phi[!is.finite(phi)] <- 0
-
-    max_phi <- max(phi, na.rm = TRUE)
-    if (!is.finite(max_phi)) max_phi <- 0
-
-    keep <- which(phi == max_phi)  # match original's exact equality
-    e1 <- i_idx[keep]; e2 <- j_idx[keep]
-    ord <- order(.dist_index_(e1, e2, m))
-    list(max_phi = max_phi, pairs = cbind(e1 = e1[ord], e2 = e2[ord]))
+  # idx(i,j; m) = (i-1)*m - ((i-1)*i)/2 + (j - i),  for 1<=i<j<=m
+  .lower_tri_index_vec <- function(i, j, m) {
+    x <- i - 1L
+    (x * m) - (x * (x + 1L)) / 2 + (j - i)
   }
 
-  # One-round φ finder with optional fallback when max φ ≤ 0
-  phi_max_pairs_round_ <- function(X) {
-    fast <- phi_max_pairs_crossprod_(X)
-    if (!fallback_when_nonpos) return(fast)
-    if (fast$max_phi > 0) return(fast)
-
+  # phi via one sparse crossproduct
+  phi_max_pairs_crossprod_distorder_ <- function(X) {
+    stopifnot(inherits(X, "dgCMatrix"))
     m <- ncol(X)
-    if (m > fallback_max_cols) return(fast)  # avoid stalls on very large rounds
+    if (m < 2L) return(list(max_phi = 0, pairs = matrix(integer(0), ncol = 2)))
 
-    # exact parity fallback (includes a=0 pairs; NA→0)
-    M <- as.matrix(X)
-    phi_full <- vegan::designdist(
-      t(M),
-      method="(a*d-b*c)/sqrt((a+c)*(b+d)*(a+b)*(c+d))",
-      terms="binary", alphagamma=FALSE, abcd=TRUE, "phi"
-    )
-    PM <- as.matrix(phi_full); PM[is.na(PM)] <- 0
-    maxv <- max(PM)
-    e1 <- integer(0); e2 <- integer(0)
-    for (ii in seq_len(m - 1L)) {
-      jj <- (ii + 1L):m
-      hits <- jj[PM[ii, jj] == maxv]
-      if (length(hits)) { e1 <- c(e1, rep.int(ii, length(hits))); e2 <- c(e2, hits) }
+    Nn <- nrow(X)
+    p  <- as.numeric(Matrix::colSums(X))  # counts
+
+    A <- Matrix::crossprod(X)             # dsCMatrix symmetric, upper triangle stored
+    Matrix::diag(A) <- 0L
+    if (length(A@x) == 0L) {
+      # no co-occurrences → need fallback to include a==0 pairs
+      return(list(max_phi = -Inf, pairs = matrix(integer(0), ncol = 2)))
     }
-    list(max_phi = maxv, pairs = cbind(e1 = e1, e2 = e2))
+
+    # indices aligned with A@x (upper triangle, compressed-by-column storage)
+    j_idx <- rep.int(seq_len(m), diff(A@p))  # column index per nonzero
+    i_idx <- A@i + 1L                        # row index per nonzero (i < j)
+    a     <- A@x                             # co-occurrence counts
+
+    b <- p[i_idx] - a
+    c <- p[j_idx] - a
+    d <- Nn - a - b - c
+
+    den <- sqrt((a + c) * (b + d) * (a + b) * (c + d))
+    phi <- ifelse(den > 0, (a * d - b * c) / den, 0)
+    phi[!is.finite(phi)] <- 0
+
+    max_phi <- max(phi)
+    keep <- which(phi == max_phi)
+    if (!length(keep)) return(list(max_phi = -Inf, pairs = matrix(integer(0), ncol = 2)))
+
+    # sort ties by the original lower-triangle linear index (exact which()-order)
+    idx <- .lower_tri_index_vec(i_idx[keep], j_idx[keep], m)
+    ord <- order(idx)
+    pairs <- cbind(e1 = i_idx[keep][ord], e2 = j_idx[keep][ord])
+    list(max_phi = max_phi, pairs = pairs)
+  }
+
+  # Fallback φ over all pairs, ties sorted by the same lower-triangle index
+  phi_max_pairs_fallback_distorder_ <- function(X) {
+    stopifnot(inherits(X, "dgCMatrix"))
+    m <- ncol(X)
+    if (m < 2L) return(list(max_phi = 0, pairs = matrix(integer(0), ncol = 2)))
+
+    Nn <- nrow(X)
+    p  <- as.numeric(Matrix::colSums(X))
+
+    best <- -Inf
+    out_i <- integer(0)
+    out_j <- integer(0)
+
+    for (j in 2L:m) {
+      a <- as.numeric(Matrix::t(X[, 1L:(j - 1L), drop = FALSE]) %*% X[, j, drop = FALSE])
+      b <- p[1L:(j - 1L)] - a
+      c <- p[j]           - a
+      d <- Nn - a - b - c
+      den <- sqrt((a + c) * (b + d) * (a + b) * (c + d))
+      phi <- ifelse(den > 0, (a * d - b * c) / den, 0)
+      phi[!is.finite(phi)] <- 0
+
+      cur <- max(phi)
+      if (cur > best) {
+        keep <- which(phi == cur)
+        best <- cur
+        out_i <- keep
+        out_j <- rep.int(j, length(keep))
+      } else if (cur == best) {
+        keep <- which(phi == best)
+        if (length(keep)) {
+          out_i <- c(out_i, keep)
+          out_j <- c(out_j, rep.int(j, length(keep)))
+        }
+      }
+    }
+
+    if (!length(out_i)) {
+      return(list(max_phi = ifelse(is.finite(best), best, 0),
+                  pairs   = matrix(integer(0), ncol = 2)))
+    }
+    idx <- .lower_tri_index_vec(out_i, out_j, m)
+    ord <- order(idx)
+    pairs <- cbind(e1 = out_i[ord], e2 = out_j[ord])
+    list(max_phi = ifelse(is.finite(best), best, 0), pairs = pairs)
   }
 
   ## ---- outputs ----
   Cluster.species <- matrix(0L, n - 1L, n, dimnames = list(NULL, species))
-  Cluster.info    <- matrix(0L, n - 1L, 2L, dimnames = list(NULL, c("k","m")))
+  Cluster.info    <- matrix(0L, n - 1L, 2L,
+                            dimnames = list(as.character(seq_len(n - 1L)), c("k","m")))
   Plot.cluster    <- matrix(0L, N, n - 1L, dimnames = list(plots, NULL))
   Cluster.merged  <- matrix(0L, n - 1L, 2L)
-  Cluster.height  <- numeric(n - 1L)
+  Cluster.height  <- array(0, n - 1L)
 
   ## ---- working state ----
   X         <- X0
   col_names <- colnames(X0); if (is.null(col_names)) col_names <- species
-
-  # NEW: robust ID tracking (no name matching)
-  # For each current column:
-  #   - col_species_idx > 0 means it's an original species with that 1..n index
-  #   - col_cluster_idx > 0 means it's a cluster with that index (i)
-  col_species_idx <- seq_len(n)   # species indices for initial columns
-  col_cluster_idx <- integer(n)   # zeros initially (not clusters yet)
-
   i <- 0L
+  name_last_cluster <- NULL
 
   pb <- if (isTRUE(progress)) utils::txtProgressBar(min = 0, max = n - 1L, style = 3) else NULL
   on.exit({ if (!is.null(pb)) close(pb) }, add = TRUE)
@@ -200,29 +239,33 @@ cocktail_cluster_new <- function(
   ## ---- agglomeration loop ----
   while (i <= (n - 2L)) {
 
-    # find all pairs at current max φ
-    maxres <- phi_max_pairs_round_(X)
-    if (!nrow(maxres$pairs)) break
-    e1 <- maxres$pairs[, "e1"]
-    e2 <- maxres$pairs[, "e2"]
+    # fast φ; if needed, fallback (ensures a==0 pairs included when max ≤ 0)
+    maxres <- phi_max_pairs_crossprod_distorder_(X)
+    if (!nrow(maxres$pairs) || !(is.finite(maxres$max_phi) && maxres$max_phi > 0)) {
+      maxres <- phi_max_pairs_fallback_distorder_(X)
+      if (!nrow(maxres$pairs)) break
+    }
+
+    e1 <- maxres$pairs[, 1L]
+    e2 <- maxres$pairs[, 2L]
     multiple.max <- length(e1)
 
-    # anti-circularization as in original
+    # circularity filter
     compare1 <- as.vector(t(cbind(e1, e2)))
     if (anyDuplicated(compare1) > 2L) {
-      tobekept <- rep(TRUE, multiple.max)
+      keep <- rep(TRUE, multiple.max)
       for (jj in 2L:multiple.max) {
         compare2 <- compare1[1L:(2L * (jj - 1L))]
         k1 <- sum(!is.na(match(compare2, e1[jj])))
         k2 <- sum(!is.na(match(compare2, e2[jj])))
-        if (k1 > 0L & k2 > 0L) tobekept[jj] <- FALSE
+        if (k1 > 0L & k2 > 0L) keep[jj] <- FALSE
       }
-      e1 <- e1[tobekept]; e2 <- e2[tobekept]
+      e1 <- e1[keep]; e2 <- e2[keep]
       multiple.max <- length(e1)
       if (multiple.max == 0L) next
     }
 
-    # cap to avoid writing past (n-1) rows
+    # respect the (n-1) bound
     remaining_merges <- (n - 1L) - i
     if (remaining_merges <= 0L) break
     if (multiple.max > remaining_merges) {
@@ -233,121 +276,112 @@ cocktail_cluster_new <- function(
 
     i1 <- i + 1L
 
-    # fuse all maxima at this height
+    # ----- rename only within current endpoints, and evolve within round -----
+    end_idx   <- c(e1, e2)
+    end_names <- col_names[end_idx]
+
     for (jj in seq_len(multiple.max)) {
       if (i >= (n - 1L)) break
       i <- i + 1L
       Cluster.height[i] <- maxres$max_phi
 
-      # left element → record species/cluster IDs from tracked indices
-      if (col_cluster_idx[e1[jj]] > 0L) {
-        cl1 <- col_cluster_idx[e1[jj]]
+      pos_left  <- match(e1[jj], end_idx)
+      pos_right <- match(e2[jj], end_idx)
+
+      left_name  <- end_names[pos_left]
+      right_name <- end_names[pos_right]
+
+      if (startsWith(left_name, "c_")) {
+        cl1 <- as.integer(sub("c_", "", left_name))
         Cluster.merged[i, 1L] <- cl1
         Cluster.species[i, Cluster.species[cl1, ] == 1L] <- 1L
       } else {
-        f1 <- col_species_idx[e1[jj]]   # guaranteed correct original index
+        f1 <- match(left_name, species)
         Cluster.merged[i, 1L] <- -f1
         Cluster.species[i, f1] <- 1L
       }
 
-      # right element
-      if (col_cluster_idx[e2[jj]] > 0L) {
-        cl2 <- col_cluster_idx[e2[jj]]
+      if (startsWith(right_name, "c_")) {
+        cl2 <- as.integer(sub("c_", "", right_name))
         Cluster.merged[i, 2L] <- cl2
         Cluster.species[i, Cluster.species[cl2, ] == 1L] <- 1L
       } else {
-        f2 <- col_species_idx[e2[jj]]
+        f2 <- match(right_name, species)
         Cluster.merged[i, 2L] <- -f2
         Cluster.species[i, f2] <- 1L
       }
 
-      # assign new cluster name to both fused columns (NAME-BASED, like original)
+      # evolve endpoint names inside the current batch
       newc <- paste0("c_", i)
-      old1 <- col_names[e1[jj]]
-      old2 <- col_names[e2[jj]]
-      col_names[col_names == old1] <- newc
-      col_names[col_names == old2] <- newc
-      # (ID vectors are updated during the rebuild step below)
+      tmp <- end_names
+      tmp[tmp == left_name]  <- newc
+      tmp[tmp == right_name] <- newc
+      end_names <- tmp
 
-      # k
+      # k, m, plot assignment (computed from original X0)
       k <- sum(Cluster.species[i, ])
       Cluster.info[i, 1L] <- k
 
-      # observed plot-frequency (fast)
       spp_idx <- which(Cluster.species[i, ] > 0L)
       species_in_plot <- as.integer(Matrix::rowSums(X0[, spp_idx, drop = FALSE]))
       Obs_plot_freq <- tabulate(species_in_plot + 1L, nbins = k + 1L)
-
-      # expected plot-frequency (×N)
       Exp_plot_freq <- Expected.plot.freq_(spp_idx) * N
-
-      # m
       Cluster.info[i, 2L] <- Compare.obs.exp.freq_(Obs_plot_freq, Exp_plot_freq)
 
-      # assign plots to cluster
       Plot.cluster[species_in_plot >= Cluster.info[i, 2L], i] <- 1L
     }
 
-    # rebuild working matrix: drop fused cols and append the new cluster columns
-    if (multiple.max > 0L) {
-      idx_e1_unique <- !duplicated(col_names[e1], fromLast = TRUE)
-      idx_e2_unique <- !duplicated(col_names[e2], fromLast = TRUE)
-      index.e <- seq.int(i1, i)[idx_e1_unique & idx_e2_unique]
+    col_names[end_idx] <- end_names
 
-      drop_cols <- sort(unique(c(e1, e2)))
-
-      if (length(index.e)) {
-        newcols <- do.call(cbind, lapply(index.e, function(kid) {
-          Matrix::Matrix(Plot.cluster[, kid] > 0L, sparse = TRUE)
-        }))
-        colnames(newcols) <- paste0("c_", index.e)
-
-        # bind new columns; update names
-        X <- cbind(X[, -drop_cols, drop = FALSE], newcols)
-        col_names <- c(col_names[-drop_cols], colnames(newcols))
-
-        # --- UPDATE ID VECTORS (critical for correct Cluster.merged recording) ---
-        col_species_idx <- c(col_species_idx[-drop_cols], rep.int(0L, length(index.e)))
-        col_cluster_idx <- c(col_cluster_idx[-drop_cols], index.e)
-      } else {
-        X <- X[, -drop_cols, drop = FALSE]
-        col_names <- col_names[-drop_cols]
-
-        col_species_idx <- col_species_idx[-drop_cols]
-        col_cluster_idx <- col_cluster_idx[-drop_cols]
-      }
+    n2 <- ncol(X)
+    if (n2 == 3L) {
+      name_last_cluster <- col_names[-c(e1[1], e2[1])]
     }
 
-    # fast tail: if the most recent cluster covers all plots, finish with φ=0 merges
-    if (i > 0L && sum(Plot.cluster[, i]) == N) {
-      for (jj in (i + 1L):(n - 1L)) {
+    idx_e1_unique <- !duplicated(col_names[e1], fromLast = TRUE)
+    idx_e2_unique <- !duplicated(col_names[e2], fromLast = TRUE)
+    index.e <- seq.int(i1, i)[idx_e1_unique & idx_e2_unique]
+
+    drop_cols <- sort(unique(c(e1, e2)))
+    if (length(index.e)) {
+      newcols <- do.call(cbind, lapply(index.e, function(kid) {
+        Matrix::Matrix(Plot.cluster[, kid] > 0L, sparse = TRUE)
+      }))
+      colnames(newcols) <- paste0("c_", index.e)
+      X <- cbind(X[, -drop_cols, drop = FALSE], newcols)
+      col_names <- c(col_names[-drop_cols], colnames(newcols))
+    } else {
+      X <- X[, -drop_cols, drop = FALSE]
+      col_names <- col_names[-drop_cols]
+    }
+
+    if (ncol(X) == 2L && length(name_last_cluster) == 1L) {
+      col_names[1L] <- name_last_cluster
+    }
+
+    # φ=0 tail
+    if (sum(Plot.cluster[, i]) == N) {
+      for (j in (i + 1L):(n - 1L)) {
         g1 <- ncol(X)
-        cl1 <- col_cluster_idx[g1]
-        Cluster.merged[jj, 1L] <- cl1
+        cl1 <- as.integer(sub("c_", "", col_names[g1]))
+        Cluster.merged[j, 1L] <- cl1
         g2 <- 1L
-        cl2 <- col_cluster_idx[g2]
-        Cluster.merged[jj, 2L] <- cl2
-        Cluster.height[jj] <- 0
-        Plot.cluster[, jj] <- 1L
-        Cluster.info[jj, 1L] <- sum(Cluster.species[jj, ])
-        Cluster.info[jj, 2L] <- 1L
-        Cluster.species[jj, Cluster.species[cl1, ] == 1L] <- 1L
-        Cluster.species[jj, Cluster.species[cl2, ] == 1L] <- 1L
+        cl2 <- as.integer(sub("c_", "", col_names[g2]))
+        Cluster.merged[j, 2L] <- cl2
+        Cluster.height[j] <- 0
+        Plot.cluster[, j] <- 1L
+        Cluster.info[j, 1L] <- sum(Cluster.species[j, ])
+        Cluster.info[j, 2L] <- 1L
+        Cluster.species[j, Cluster.species[cl1, ] == 1L] <- 1L
+        Cluster.species[j, Cluster.species[cl2, ] == 1L] <- 1L
 
-        newc <- Matrix::Matrix(Plot.cluster[, jj] > 0L, sparse = TRUE)
-        colnames(newc) <- paste0("c_", jj)
-        X <- cbind(X, newc)
+        X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0L, sparse = TRUE))
+        colnames(X)[ncol(X)] <- paste0("c_", j)
         X <- X[, -c(g1, g2), drop = FALSE]
-        col_names <- c(col_names, colnames(newc))
+        col_names <- c(col_names, paste0("c_", j))
         col_names <- col_names[-c(g1, g2)]
-
-        # update ID vectors for tail
-        col_species_idx <- c(col_species_idx, 0L)
-        col_species_idx <- col_species_idx[-c(g1, g2)]
-        col_cluster_idx <- c(col_cluster_idx, jj)
-        col_cluster_idx <- col_cluster_idx[-c(g1, g2)]
       }
-      i <- n - 1L
+      i <- j
     }
 
     if (!is.null(pb)) utils::setTxtProgressBar(pb, min(i, n - 1L))
@@ -361,7 +395,8 @@ cocktail_cluster_new <- function(
     Cluster.merged  = Cluster.merged,
     Cluster.height  = Cluster.height,
     species         = species,
-    plots           = plots
+    plots           = plots#,
+    # dropped_species = dropped_species
   )
   class(res) <- c("cocktail", class(res))
   res

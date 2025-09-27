@@ -2,47 +2,57 @@
 % Please edit documentation in R/cocktail_cluster_new.R
 \name{cocktail_cluster_new}
 \alias{cocktail_cluster_new}
-\title{Cocktail clustering (sparse, parity with original, bounded merges; robust IDs)}
+\title{Cocktail clustering (sparse matrix)}
 \usage{
-cocktail_cluster_new(
-  vegmatrix,
-  binarize = TRUE,
-  progress = TRUE,
-  fallback_when_nonpos = TRUE,
-  fallback_max_cols = 600L
-)
+cocktail_cluster_new(vegmatrix, progress = TRUE)
 }
 \arguments{
-\item{vegmatrix}{Numeric matrix or data.frame; plots in rows, species in columns.}
+\item{vegmatrix}{A matrix or data frame with \strong{plots in rows} and \strong{species in columns}.}
 
-\item{binarize}{Logical; convert to presence/absence (default TRUE).}
-
-\item{progress}{Logical; show a text progress bar (default TRUE).}
-
-\item{fallback_when_nonpos}{Logical; if TRUE, when max φ ≤ 0 compute that round
-with vegan::designdist for exact parity. Default TRUE.}
-
-\item{fallback_max_cols}{Integer; only use the fallback if the current number
-of columns is ≤ this value (prevents stalls on huge rounds). Default 600.}
+\item{progress}{Logical; show a text progress bar (default \code{TRUE}).}
 }
 \value{
 A list of class \code{"cocktail"} with:
 \itemize{
-\item \code{Cluster.species}: (n-1) x n integer matrix; species membership per cluster
-\item \code{Cluster.info}:   (n-1) x 2 integer matrix; columns \code{k} (size), \code{m} (min spp per plot)
-\item \code{Plot.cluster}:    N x (n-1) integer matrix; plot assignment per cluster
-\item \code{Cluster.merged}:  (n-1) x 2 integer matrix; negative = species id, positive = cluster id
-\item \code{Cluster.height}:  numeric vector of length n-1; phi at which each merge formed
-\item \code{species}, \code{plots}: character vectors with names from input
+\item \code{Cluster.species} — integer matrix (n_merges × n_species): species membership per merge.
+\item \code{Cluster.merged}  — integer matrix (n_merges × 2): left/right children per merge
+(negative = original species index; positive = earlier merge index).
+\item \code{Cluster.height}  — numeric vector length n_merges: phi at each merge.
+\item \code{Plot.cluster}    — integer matrix (n_plots × n_merges): plot membership per merge.
+\item \code{species}         — character vector of species names kept after cleaning.
+\item \code{plots}           — character vector of plot names.
 }
 }
 \description{
-Runs the Cocktail hierarchical agglomeration on a plots x species matrix.
-Each round uses a single sparse crossproduct to compute co-occurrences and
-φ from (a,b,c,d) via the same (ad−bc)/sqrt(...) form as vegan::designdist.
-Ties are ordered to match the lower-triangle "dist" indexing. When the
-current max φ is nonpositive, an optional fallback evaluates the round
-with vegan::designdist for exact parity (including a=0 pairs).
-Importantly, this version records merges using \strong{tracked indices} instead
-of name matching, so the first merge cannot drift even with tricky names.
+This implementation:
+\itemize{
+\item \strong{Binarizes} the input: values > 0 become 1; values ≤ 0 or \code{NA} become 0.
+\item \strong{Drops empty species} (all-zero columns) before clustering.
+\item Computes the association coefficient (“phi”) each round from one sparse
+crossproduct for speed and exactness.
+\item Uses a \strong{fixed, reproducible tie order}: when several pairs share the same
+maximum phi at a step, they are processed in the same order that R fills the
+lower-triangular distance matrix (scan by increasing column, then row).
+}
+}
+\details{
+Fast Cocktail agglomeration for a \strong{plots × species} table.
+
+Binarization and removal of empty species happen internally and only affect the
+set of columns that contribute to clustering. All returned components are aligned
+to the species that had at least one presence after cleaning.
+}
+\examples{
+vm <- matrix(c(1,0,1,
+               0,1,0,
+               1,1,0),
+             nrow = 3, byrow = TRUE,
+             dimnames = list(paste0("plot", 1:3),
+                             c("sp1","sp2","sp3")))
+res <- cocktail_cluster_new(vm, progress = FALSE)
+names(res)
+
+}
+\seealso{
+\code{\link{plot_cocktail}}, \code{\link{cocktail_fuzzy}}, \code{\link{assign_releves}}
 }

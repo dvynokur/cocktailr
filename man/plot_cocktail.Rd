@@ -18,25 +18,44 @@ plot_cocktail(
 )
 }
 \arguments{
-\item{x}{cocktail object (from \code{cocktail_cluster()})}
+\item{x}{A Cocktail object (e.g., from \code{cocktail_cluster_new()}), with
+components \code{Cluster.species}, \code{Cluster.merged}, and \code{Cluster.height}.}
 
-\item{file}{output PDF path}
+\item{file}{Path to the output PDF.}
 
-\item{page_size}{tips per page (use \code{ncol(x$Cluster.species)} for one page)}
+\item{page_size}{Integer, number of tips per page. Use
+\code{ncol(x$Cluster.species)} to place all tips on a single page.}
 
-\item{width_in}{PDF width in inches (NULL = auto; capped at 150")}
+\item{width_in}{PDF width in inches. If \code{NULL}, a width is chosen
+automatically (capped at 150 inches) based on \code{page_size}.}
 
-\item{height_in}{PDF height in inches}
+\item{height_in}{PDF height in inches (default 10).}
 
-\item{cex_labels}{axis label size}
+\item{cex_labels}{Numeric expansion factor for tip labels on the x-axis.}
 
-\item{bands_phi}{numeric or NULL. If given, draw background bands for
-"parent" clusters with \eqn{\phi \ge bands_phi}.}
+\item{bands_phi}{Numeric or \code{NULL}. If given, draw background bands for
+parent clusters with \eqn{\phi \ge \mathrm{bands\_phi}}, and also draw a
+dashed horizontal line at this \eqn{\phi} level across each page.}
 
-\item{palette}{palette name for \code{hcl.colors()} (e.g. "Set3","Dark2","Paired") or "rainbow"}
+\item{palette}{Color palette name for \code{grDevices::hcl.colors()}
+(e.g., \code{"Set3"}, \code{"Dark2"}, \code{"Paired"}) or \code{"rainbow"}.}
 
-\item{alpha_fill, alpha_border}{transparency for fill/border}
+\item{alpha_fill, alpha_border}{Numeric alpha levels (0–1) for band fill and border.}
+}
+\value{
+Creates a PDF on disk; returns \code{NULL} invisibly.
 }
 \description{
-Plot Cocktail dendrogram to PDF
+Draw a dendrogram-style plot of a fitted Cocktail clustering and write it to
+a PDF file. Species (tips) are arranged left-to-right in the same order used
+by the original algorithm, and the y-axis shows the \eqn{\phi} height of each
+merge. Optionally, highlight “parent” clusters at or above a chosen cut and
+draw a dashed horizontal line at that cut.
+}
+\details{
+Species order is reproduced from the original Cocktail implementation by
+sorting the per-tip membership strings derived from \code{x$Cluster.species}.
+Large trees are automatically paginated using \code{page_size}; the device
+width grows with the number of tips on a page but is capped to avoid
+unwieldy PDFs.
 }
