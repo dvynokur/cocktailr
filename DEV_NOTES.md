@@ -40,3 +40,6 @@ unlink(file.path(.libPaths()[1], "00LOCK*"), recursive = TRUE, force = TRUE)
 system("git add .")
 system('git commit -m "your message"')
 system("git push")
+
+# readme: update the READMY.Rmd, then run:
+devtools::build_readme()

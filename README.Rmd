@@ -95,7 +95,7 @@ vm <- matrix(c(1,0,1,0,1,0,
 res <- cocktail_cluster(vm, progress = FALSE)
 
 # 2) Plot dendrogram to PDF (disabled in README to avoid file output)
-# plot_cocktail(res, "res.pdf", bands_phi = 0.30, palette = "rainbow")
+# plot_cocktail(res, "res.pdf", bands_phi = 0.30, palette = "rainbow", cex_labels = 1)
 
 # 3) Parent clusters at φ ≥ 0.30
 phi_cut <- 0.30
