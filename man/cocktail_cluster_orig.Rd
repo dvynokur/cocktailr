@@ -7,23 +7,29 @@
 cocktail_cluster_orig(veg, to_pa = TRUE, progress = interactive())
 }
 \arguments{
-\item{progress}{Logical; show a text progress bar (default \code{TRUE}).}
+\item{veg}{A matrix or data frame with plots in rows and species in columns.}
+
+\item{to_pa}{Logical; convert to presence/absence (values > 0 → 1, else 0).
+Default \code{TRUE}.}
+
+\item{progress}{Logical; show a text progress bar. Default \code{interactive()}.}
 }
 \value{
-A list (class "cocktail") with:
+A list of class \code{"cocktail"} with components:
 \itemize{
-\item Cluster.species  (clusters x species 0/1)
-\item Cluster.info     (k, m per cluster)
-\item Plot.cluster     (plots x clusters 0/1)
-\item Cluster.merged   (merge matrix like hclust)
-\item Cluster.height   (phi at merge)
-\item species, plots   (names)
+\item \code{Cluster.species} — integer matrix (n_merges × n_species): species membership per merge.
+\item \code{Cluster.info}    — integer matrix (n_merges × 2): k (species per node) and m (threshold).
+\item \code{Plot.cluster}    — integer matrix (n_plots × n_merges): plot membership per merge.
+\item \code{Cluster.merged}  — integer matrix (n_merges × 2): left/right children per merge
+(negative = original species index; positive = earlier merge index).
+\item \code{Cluster.height}  — numeric vector length n_merges: φ at each merge.
+\item \code{species}, \code{plots} — character vectors of names used.
 }
 }
 \description{
-Runs the original Bruelheide-like Cocktail clustering on a plots x species
-matrix. Converts to presence/absence by default, computes phi-based merges,
-and determines the per-cluster m using expected vs. observed frequencies.
+Runs the original Cocktail clustering on a plots × species
+matrix. Converts to presence/absence by default, computes φ-based merges,
+and determines per-cluster m using expected vs. observed frequencies.
 }
 \references{
 Bruelheide (2000, 2016)

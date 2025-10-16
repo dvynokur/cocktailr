@@ -18,7 +18,7 @@ cocktail_expert(
 \item{x}{Either:
 \itemize{
 \item a Cocktail object (list with \code{Cluster.species}), or
-\item a numeric matrix returned by \code{cocktail_fuzzy()} (species \u00D7 nodes;
+\item a numeric matrix returned by \code{cocktail_fuzzy()} (species x nodes;
 columns named like \code{"c_2127"}).
 }}
 
@@ -31,12 +31,12 @@ If \code{x} is a Cocktail object, \code{labels} must be supplied.}
 \item{top_k}{Fuzzy only: optional integer; after \code{min_phi} filtering keep only the
 top \code{k} species by \eqn{\phi}. Default \code{NULL} = keep all that pass \code{min_phi}.}
 
-\item{fuzzy_sort}{Fuzzy only: how to order species in the output —
+\item{fuzzy_sort}{Fuzzy only: how to order species in the output -
 \code{"phi"} (default; decreasing \eqn{\phi}), \code{"alpha"} (alphabetical by species),
 or \code{"none"} (input order). \strong{Note:} group names are always derived from the
 highest-\eqn{\phi} species, regardless of this setting.}
 
-\item{group_naming}{Fuzzy only: how to name groups in the \code{"###"} header —
+\item{group_naming}{Fuzzy only: how to name groups in the \code{"###"} header -
 \code{"id"} (use the column label, e.g., \code{"c_2127"}), \code{"top1"} (highest-\eqn{\phi}
 species + \code{-group}), or \code{"top2"} (top two \eqn{\phi} species joined by \code{-},
 plus \code{-group}). Spaces are replaced with \code{-} and non-alphanumeric characters
@@ -53,7 +53,7 @@ A single character string containing the expert-system text. If
 Produce a plain-text expert system where each group starts with a header line
 \code{"### <group-name>"} followed by one species per line.
 Works with either a Cocktail object (species lists per cluster) or a fuzzy
-\eqn{\phi} matrix (species \u00D7 nodes).
+\eqn{\phi} matrix (species x nodes).
 }
 \details{
 For Cocktail objects, each species is printed on its own line, indented with

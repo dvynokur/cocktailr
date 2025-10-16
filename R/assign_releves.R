@@ -8,7 +8,7 @@
 #' \code{x$Plot.cluster}), and plot scores are cover–\eqn{\phi} weighted sums.
 #'
 #' @param x A Cocktail result (list with \code{Cluster.species}, \code{Cluster.merged},
-#'   \code{Cluster.height}; typically from \code{cocktail_cluster_new()}).
+#'   \code{Cluster.height}; typically from \code{cocktail_cluster()}).
 #' @param vegmatrix Numeric matrix/data.frame of covers with plots in rows and species
 #'   in columns. Missing values are treated as 0.
 #' @param mode Assignment mode: \code{"strict"} or \code{"fuzzy"}.

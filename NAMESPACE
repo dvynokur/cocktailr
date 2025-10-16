@@ -2,7 +2,7 @@
 
 export(assign_releves)
 export(clusters_at_cut)
-export(cocktail_cluster_new)
+export(cocktail_cluster)
 export(cocktail_cluster_orig)
 export(cocktail_expert)
 export(cocktail_fuzzy)

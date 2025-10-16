@@ -7,7 +7,7 @@
 #' merge. Optionally, highlight “parent” clusters at or above a chosen cut and
 #' draw a dashed horizontal line at that cut.
 #'
-#' @param x A Cocktail object (e.g., from \code{cocktail_cluster_new()}), with
+#' @param x A Cocktail object (e.g., from \code{cocktail_cluster()}), with
 #'   components \code{Cluster.species}, \code{Cluster.merged}, and \code{Cluster.height}.
 #' @param file Path to the output PDF.
 #' @param page_size Integer, number of tips per page. Use

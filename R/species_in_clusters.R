@@ -81,13 +81,13 @@ species_in_clusters <- function(x, labels = NULL, min_phi = 0.20, top_k = NULL, 
     return(out)
   }
 
-  # --- Case B: φ matrix -> return species + φ data frames ------------------
+  # --- Case B: phi matrix -> return species + phi data frames ------------------
   if (!is.matrix(x) || !is.numeric(x)) {
     stop("`x` must be either a Cocktail object or a numeric matrix from cocktail_fuzzy().")
   }
   Phi <- x
-  if (is.null(rownames(Phi))) stop("φ matrix must have species in rownames.")
-  if (is.null(colnames(Phi))) stop("φ matrix must have node labels in colnames (e.g., 'c_2127').")
+  if (is.null(rownames(Phi))) stop("phi matrix must have species in rownames.")
+  if (is.null(colnames(Phi))) stop("phi matrix must have node labels in colnames (e.g., 'c_2127').")
 
   # If labels not supplied, use all columns
   if (is.null(labels)) {
@@ -96,19 +96,19 @@ species_in_clusters <- function(x, labels = NULL, min_phi = 0.20, top_k = NULL, 
     lab_char <- ifelse(grepl("^c_\\d+$", labels), labels, paste0("c_", sub("^c_", "", labels)))
     labels_use <- intersect(lab_char, colnames(Phi))
     missing <- setdiff(ifelse(grepl("^c_", labels), labels, paste0("c_", labels)), labels_use)
-    if (length(missing)) warning("Dropping unknown labels in φ matrix: ", paste(missing, collapse = ", "))
+    if (length(missing)) warning("Dropping unknown labels in phi matrix: ", paste(missing, collapse = ", "))
   } else if (is.numeric(labels) || is.integer(labels)) {
     lab_char <- paste0("c_", as.integer(labels))
     labels_use <- intersect(lab_char, colnames(Phi))
     missing <- setdiff(lab_char, labels_use)
-    if (length(missing)) warning("Dropping unknown labels in φ matrix: ", paste(missing, collapse = ", "))
+    if (length(missing)) warning("Dropping unknown labels in phi matrix: ", paste(missing, collapse = ", "))
   } else {
     stop("`labels` must be character like 'c_123' or integer node IDs.")
   }
 
   if (!length(labels_use)) return(setNames(list(), character(0)))
 
-  # φ filters (φ-matrix case only)
+  # phi filters (phi-matrix case only)
   do_min_phi <- is.finite(min_phi)
   do_top_k   <- !is.null(top_k) && is.finite(top_k) && top_k > 0
 

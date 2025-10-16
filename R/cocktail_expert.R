@@ -4,12 +4,12 @@
 #' Produce a plain-text expert system where each group starts with a header line
 #' `"### <group-name>"` followed by one species per line.
 #' Works with either a Cocktail object (species lists per cluster) or a fuzzy
-#' \eqn{\phi} matrix (species \u00D7 nodes).
+#' \eqn{\phi} matrix (species x nodes).
 #'
 #' @param x Either:
 #'   \itemize{
 #'     \item a Cocktail object (list with `Cluster.species`), or
-#'     \item a numeric matrix returned by `cocktail_fuzzy()` (species \u00D7 nodes;
+#'     \item a numeric matrix returned by `cocktail_fuzzy()` (species x nodes;
 #'           columns named like `"c_2127"`).
 #'   }
 #' @param labels Character labels like `"c_2127"` or integer node IDs to include.
@@ -18,11 +18,11 @@
 #' @param min_phi Fuzzy only: keep species with \eqn{\phi \ge} `min_phi`. Default `0.20`.
 #' @param top_k Fuzzy only: optional integer; after `min_phi` filtering keep only the
 #'   top `k` species by \eqn{\phi}. Default `NULL` = keep all that pass `min_phi`.
-#' @param fuzzy_sort Fuzzy only: how to order species in the output —
+#' @param fuzzy_sort Fuzzy only: how to order species in the output -
 #'   `"phi"` (default; decreasing \eqn{\phi}), `"alpha"` (alphabetical by species),
 #'   or `"none"` (input order). **Note:** group names are always derived from the
 #'   highest-\eqn{\phi} species, regardless of this setting.
-#' @param group_naming Fuzzy only: how to name groups in the `"###"` header —
+#' @param group_naming Fuzzy only: how to name groups in the `"###"` header -
 #'   `"id"` (use the column label, e.g., `"c_2127"`), `"top1"` (highest-\eqn{\phi}
 #'   species + `-group`), or `"top2"` (top two \eqn{\phi} species joined by `-`,
 #'   plus `-group`). Spaces are replaced with `-` and non-alphanumeric characters
@@ -100,13 +100,13 @@ cocktail_expert <- function(
     }
 
   } else {
-    ## ---- Fuzzy φ matrix: value + species per group ----
+    ## ---- Fuzzy phi matrix: value + species per group ----
     if (!is.matrix(x) || !is.numeric(x)) {
-      stop("`x` must be either a Cocktail object or a numeric φ matrix from cocktail_fuzzy().")
+      stop("`x` must be either a Cocktail object or a numeric phi matrix from cocktail_fuzzy().")
     }
     Phi <- x
-    if (is.null(rownames(Phi))) stop("φ matrix must have species in rownames.")
-    if (is.null(colnames(Phi))) stop("φ matrix must have node labels in colnames (e.g., 'c_2127').")
+    if (is.null(rownames(Phi))) stop("phi matrix must have species in rownames.")
+    if (is.null(colnames(Phi))) stop("phi matrix must have node labels in colnames (e.g., 'c_2127').")
 
     labs_use <- if (is.null(labels)) colnames(Phi) else .norm_labels_to_chars(labels, colnames(Phi))
     if (!length(labs_use)) return("")
@@ -121,7 +121,7 @@ cocktail_expert <- function(
       v  <- as.numeric(Phi[, lab])
       sp <- rownames(Phi)
 
-      # ----- Group naming always based on top-φ species (before filtering or display sorting)
+      # ----- Group naming always based on top-phi species (before filtering or display sorting)
       ord_phi <- order(v, decreasing = TRUE, na.last = NA)
       top1 <- if (length(ord_phi) >= 1) sp[ord_phi[1]] else ""
       top2 <- if (length(ord_phi) >= 2) sp[ord_phi[2]] else ""

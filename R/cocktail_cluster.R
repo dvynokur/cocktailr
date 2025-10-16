@@ -41,14 +41,14 @@
 #'              nrow = 3, byrow = TRUE,
 #'              dimnames = list(paste0("plot", 1:3),
 #'                              c("sp1","sp2","sp3")))
-#' res <- cocktail_cluster_new(vm, progress = FALSE)
+#' res <- cocktail_cluster(vm, progress = FALSE)
 #' names(res)
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' @export
 
-cocktail_cluster_new <- function(
+cocktail_cluster <- function(
     vegmatrix,
     progress = TRUE
 ) {
@@ -359,29 +359,39 @@ cocktail_cluster_new <- function(
       col_names[1L] <- name_last_cluster
     }
 
-    # φ=0 tail
+    # φ = 0 tail: once every plot is in the current cluster, finish remaining merges at height 0
     if (sum(Plot.cluster[, i]) == N) {
-      for (j in (i + 1L):(n - 1L)) {
-        g1 <- ncol(X)
-        cl1 <- as.integer(sub("c_", "", col_names[g1]))
-        Cluster.merged[j, 1L] <- cl1
-        g2 <- 1L
-        cl2 <- as.integer(sub("c_", "", col_names[g2]))
-        Cluster.merged[j, 2L] <- cl2
-        Cluster.height[j] <- 0
-        Plot.cluster[, j] <- 1L
-        Cluster.info[j, 1L] <- sum(Cluster.species[j, ])
-        Cluster.info[j, 2L] <- 1L
-        Cluster.species[j, Cluster.species[cl1, ] == 1L] <- 1L
-        Cluster.species[j, Cluster.species[cl2, ] == 1L] <- 1L
+      remaining <- (n - 1L) - i
+      if (remaining > 0L) {
+        for (j in (i + seq_len(remaining))) {
+          # sanity: j within 1..n-1
+          stopifnot(j >= 1L, j <= nrow(Cluster.merged))
 
-        X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0L, sparse = TRUE))
-        colnames(X)[ncol(X)] <- paste0("c_", j)
-        X <- X[, -c(g1, g2), drop = FALSE]
-        col_names <- c(col_names, paste0("c_", j))
-        col_names <- col_names[-c(g1, g2)]
+          g1  <- ncol(X)
+          cl1 <- as.integer(sub("c_", "", col_names[g1]))
+          Cluster.merged[j, 1L] <- cl1
+
+          g2  <- 1L
+          cl2 <- as.integer(sub("c_", "", col_names[g2]))
+          Cluster.merged[j, 2L] <- cl2
+
+          Cluster.height[j] <- 0
+          Plot.cluster[, j] <- 1L
+          Cluster.info[j, 1L] <- sum(Cluster.species[j, ])
+          Cluster.info[j, 2L] <- 1L
+
+          Cluster.species[j, Cluster.species[cl1, ] == 1L] <- 1L
+          Cluster.species[j, Cluster.species[cl2, ] == 1L] <- 1L
+
+          X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0L, sparse = TRUE))
+          colnames(X)[ncol(X)] <- paste0("c_", j)
+          X <- X[, -c(g1, g2), drop = FALSE]
+          col_names <- c(col_names, paste0("c_", j))
+          col_names <- col_names[-c(g1, g2)]
+        }
+        # advance i by exactly how many merges we just filled
+        i <- i + remaining
       }
-      i <- j
     }
 
     if (!is.null(pb)) utils::setTxtProgressBar(pb, min(i, n - 1L))

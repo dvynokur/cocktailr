@@ -1,21 +1,28 @@
 #' Cocktail clustering (original version)
 #'
-#' Runs the original Bruelheide-like Cocktail clustering on a plots x species
-#' matrix. Converts to presence/absence by default, computes phi-based merges,
-#' and determines the per-cluster m using expected vs. observed frequencies.
+#' Runs the original Cocktail clustering on a plots × species
+#' matrix. Converts to presence/absence by default, computes φ-based merges,
+#' and determines per-cluster m using expected vs. observed frequencies.
 #'
-#' @inheritParams cocktail_cluster_new
-#' @return A list (class "cocktail") with:
+#' @param veg A matrix or data frame with plots in rows and species in columns.
+#' @param to_pa Logical; convert to presence/absence (values > 0 → 1, else 0).
+#'              Default `TRUE`.
+#' @param progress Logical; show a text progress bar. Default `interactive()`.
+#'
+#' @return A list of class `"cocktail"` with components:
 #' \itemize{
-#'   \item Cluster.species  (clusters x species 0/1)
-#'   \item Cluster.info     (k, m per cluster)
-#'   \item Plot.cluster     (plots x clusters 0/1)
-#'   \item Cluster.merged   (merge matrix like hclust)
-#'   \item Cluster.height   (phi at merge)
-#'   \item species, plots   (names)
+#'   \item `Cluster.species` — integer matrix (n_merges × n_species): species membership per merge.
+#'   \item `Cluster.info`    — integer matrix (n_merges × 2): k (species per node) and m (threshold).
+#'   \item `Plot.cluster`    — integer matrix (n_plots × n_merges): plot membership per merge.
+#'   \item `Cluster.merged`  — integer matrix (n_merges × 2): left/right children per merge
+#'         (negative = original species index; positive = earlier merge index).
+#'   \item `Cluster.height`  — numeric vector length n_merges: φ at each merge.
+#'   \item `species`, `plots` — character vectors of names used.
 #' }
+#'
 #' @references Bruelheide (2000, 2016)
 #' @export
+
 cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
   V <- as.matrix(veg)
   rownames(V) <- rownames(veg); colnames(V) <- colnames(veg)
@@ -177,24 +184,32 @@ cocktail_cluster_orig <- function(veg, to_pa = TRUE, progress = interactive()) {
     }
 
     if (sum(Plot.cluster[, i]) == N) {
-      for (j in (i + 1L):(n - 1L)) {
-        g1 <- ncol(veg2)
-        cl1 <- as.integer(strsplit(colnames(veg2)[g1], "_")[[1]][2])
-        Cluster.merged[j, 1] <- cl1
-        g2 <- 1L
-        cl2 <- as.integer(strsplit(colnames(veg2)[g2], "_")[[1]][2])
-        Cluster.merged[j, 2] <- cl2
-        Cluster.height[j] <- 0
-        Plot.cluster[, j] <- 1L
-        Cluster.info[j, "k"] <- sum(Cluster.species[j, ])
-        Cluster.info[j, "m"] <- 1L
-        Cluster.species[j, which(Cluster.species[cl1, ] == 1)] <- 1L
-        Cluster.species[j, which(Cluster.species[cl2, ] == 1)] <- 1L
-        veg2 <- cbind(veg2, Plot.cluster[, j, drop = FALSE])
-        colnames(veg2)[ncol(veg2)] <- paste0("c_", j)
-        veg2 <- veg2[, -c(g1, g2), drop = FALSE]
+      remaining <- (n - 1L) - i
+      if (remaining > 0L) {
+        for (j in (i + seq_len(remaining))) {
+          stopifnot(j >= 1L, j <= nrow(Cluster.merged))
+
+          g1  <- ncol(veg2)
+          cl1 <- as.integer(strsplit(colnames(veg2)[g1], "_")[[1]][2])
+          Cluster.merged[j, 1] <- cl1
+
+          g2  <- 1L
+          cl2 <- as.integer(strsplit(colnames(veg2)[g2], "_")[[1]][2])
+          Cluster.merged[j, 2] <- cl2
+
+          Cluster.height[j] <- 0
+          Plot.cluster[, j] <- 1L
+          Cluster.info[j, "k"] <- sum(Cluster.species[j, ])
+          Cluster.info[j, "m"] <- 1L
+          Cluster.species[j, Cluster.species[cl1, ] == 1] <- 1L
+          Cluster.species[j, Cluster.species[cl2, ] == 1] <- 1L
+
+          veg2 <- cbind(veg2, Plot.cluster[, j, drop = FALSE])
+          colnames(veg2)[ncol(veg2)] <- paste0("c_", j)
+          veg2 <- veg2[, -c(g1, g2), drop = FALSE]
+        }
+        i <- i + remaining
       }
-      i <- j
     }
 
     if (!is.null(pb)) utils::setTxtProgressBar(pb, i)

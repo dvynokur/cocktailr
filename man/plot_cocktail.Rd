@@ -18,7 +18,7 @@ plot_cocktail(
 )
 }
 \arguments{
-\item{x}{A Cocktail object (e.g., from \code{cocktail_cluster_new()}), with
+\item{x}{A Cocktail object (e.g., from \code{cocktail_cluster()}), with
 components \code{Cluster.species}, \code{Cluster.merged}, and \code{Cluster.height}.}
 
 \item{file}{Path to the output PDF.}

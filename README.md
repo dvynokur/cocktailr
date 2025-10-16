@@ -1,59 +1,50 @@
----
-title: "cocktailr"
-output:
-  github_document:
-    toc: true
-    toc_depth: 3
-    df_print: default
-editor_options:
-  chunk_output_type: console
----
+cocktailr
+================
 
-```{r, include=FALSE}
-# Global knitr options for fast, reproducible README builds
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  fig.path = "man/figures/README-",
-  fig.width = 7,
-  fig.height = 4,
-  dpi = 150,
-  out.width = "100%",
-  warning = FALSE,
-  message = FALSE,
-  cache = FALSE
-)
-set.seed(1)
-```
+- [cocktailr](#cocktailr)
+  - [Overview](#overview)
+  - [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Typical workflow](#typical-workflow)
+    - [(Optional) Attach assignments to header data
+      frame](#optional-attach-assignments-to-header-data-frame)
+  - [Reference](#reference)
 
 # cocktailr
 
 Fast, reproducible *Cocktail* clustering for vegetation tables.
 
----
+------------------------------------------------------------------------
 
 ## Overview
 
-**cocktailr** provides fast, reproducible *Cocktail* agglomerative clustering for **plots × species** presence/absence tables, using sparse matrices, exact φ (phi) coefficients from a single cross-product per round, and deterministic tie-breaking. It also computes **fuzzy species-by-node φ memberships** for every internal cluster node.
+**cocktailr** provides fast, reproducible *Cocktail* agglomerative
+clustering for **plots × species** presence/absence tables, using sparse
+matrices, exact φ (phi) coefficients from a single cross-product per
+round, and deterministic tie-breaking. It also computes **fuzzy
+species-by-node φ memberships** for every internal cluster node.
 
-> **TL;DR:** A fast, deterministic R package to turn vegetation **plots × species** data into reproducible *Cocktail* cluster trees with exact φ coefficients.
+> **TL;DR:** A fast, deterministic R package to turn vegetation **plots
+> × species** data into reproducible *Cocktail* cluster trees with exact
+> φ coefficients.
 
----
+------------------------------------------------------------------------
 
 ## Installation
 
-```r
+``` r
 # Install from GitHub
 remotes::install_github("dvynokur/cocktailr")
 ```
 
----
+------------------------------------------------------------------------
 
 ## Quick Start
 
-A minimal example that demonstrates a merge with **positive φ** and shows non-empty cluster results.
+A minimal example that demonstrates a merge with **positive φ** and
+shows non-empty cluster results.
 
-```{r quick-start}
+``` r
 library(cocktailr)
 
 # Tiny matrix with positive association between sp1 & sp2
@@ -66,21 +57,26 @@ dimnames = list(paste0("plot", 1:3), c("sp1","sp2")))
 
 res_pos  <- cocktail_cluster(vm_pos, progress = FALSE)
 res_pos$Cluster.height  # should be > 0 (e.g. +0.5)
+#> [1] 0.5
 
 # Parent clusters at φ ≥ 0.3
 labs_pos <- clusters_at_cut(res_pos, phi = 0.3)
 labs_pos
+#> [1] "c_1"
 species_in_clusters(res_pos, labels = labs_pos)
+#> $c_1
+#> [1] "sp1" "sp2"
 ```
 
----
+------------------------------------------------------------------------
 
 ## Typical workflow
 
 An end-to-end example on a toy **plots × species** matrix.  
-It shows classical clustering, dendrogram plotting, cluster inspection, fuzzy φ computation, and plot assignment.
+It shows classical clustering, dendrogram plotting, cluster inspection,
+fuzzy φ computation, and plot assignment.
 
-```{r typical-workflow}
+``` r
 library(cocktailr)
 
 # Toy plots × species matrix
@@ -101,15 +97,31 @@ res <- cocktail_cluster(vm, progress = FALSE)
 phi_cut <- 0.30
 labs <- clusters_at_cut(res, phi = phi_cut)
 labs
+#> [1] "c_1" "c_3"
 
 # 4) Diagnostic species from Cocktail object (binary membership)
 species_in_clusters(res, labels = labs)
+#> $c_1
+#> [1] "sp1" "sp5"
+#> 
+#> $c_3
+#> [1] "sp2" "sp4" "sp6"
 
 # 5) Fuzzy Cocktail: φ for species × all internal nodes
 res_fuzzy <- cocktail_fuzzy(res, vm)
 
 # 6) Diagnostic species from fuzzy φ matrix
 species_in_clusters(res_fuzzy, labels = labs, min_phi = 0.20, top_k = 10)
+#> $c_1
+#>   species phi
+#> 1     sp1   1
+#> 2     sp5   1
+#> 
+#> $c_3
+#>   species       phi
+#> 1     sp6 1.0000000
+#> 2     sp2 0.5773503
+#> 3     sp4 0.5773503
 
 # 7) Assign plots to parent groups (strict)
 assign_strict <- assign_releves(
@@ -123,6 +135,9 @@ assign_strict <- assign_releves(
   min_group_size  = 1
 )
 table(assign_strict)
+#> assign_strict
+#> c_1 c_3 
+#>   2   2
 
 # 8) Assign plots using fuzzy φ weights
 assign_fuzzy <- assign_releves(
@@ -137,23 +152,42 @@ assign_fuzzy <- assign_releves(
   min_group_size  = 1
 )
 table(assign_fuzzy)
+#> assign_fuzzy
+#> c_1 c_3 
+#>   2   2
 
 # 9) Species for assigned (non-"not assigned") groups
 labs_strict <- setdiff(names(table(assign_strict)), "not assigned")
 if (length(labs_strict)) species_in_clusters(res, labs_strict)
+#> $c_1
+#> [1] "sp1" "sp5"
+#> 
+#> $c_3
+#> [1] "sp2" "sp4" "sp6"
 
 labs_fuzzy <- setdiff(names(table(assign_fuzzy)), "not assigned")
 if (length(labs_fuzzy)) species_in_clusters(res_fuzzy, labs_fuzzy, min_phi = 0.15, top_k = 20)
+#> $c_1
+#>   species phi
+#> 1     sp1   1
+#> 2     sp5   1
+#> 
+#> $c_3
+#>   species       phi
+#> 1     sp6 1.0000000
+#> 2     sp2 0.5773503
+#> 3     sp4 0.5773503
 ```
 
----
+------------------------------------------------------------------------
 
 ### (Optional) Attach assignments to header data frame
 
-If you have a metadata table `hea` with a column `releve_number`, you can join assignments back to it.  
+If you have a metadata table `hea` with a column `releve_number`, you
+can join assignments back to it.  
 (Example not evaluated in README builds.)
 
-```{r attach-assignments, eval=FALSE}
+``` r
 library(dplyr)
 library(tibble)
 
@@ -168,7 +202,8 @@ hea2 <- hea %>%
   left_join(assign_df, by = "plot_id") %>%
   select(-plot_id)
 ```
----
+
+------------------------------------------------------------------------
 
 ## Reference
 
@@ -181,6 +216,6 @@ See function help for details:
 - `?assign_releves` – assign plots (strict/fuzzy)  
 - `?species_in_clusters` – list diagnostic species for clusters
 
----
+------------------------------------------------------------------------
 
 © 2025 Denys Vynokurov & Helge Bruelheide. Licensed under MIT.
