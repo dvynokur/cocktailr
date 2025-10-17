@@ -1,0 +1,18 @@
+citHeader("To cite cocktailr in publications, please use:")
+
+# Package citation (auto-fills year and installed version)
+bibentry(
+  bibtype = "Manual",
+  title   = "cocktailr: fast, reproducible Cocktail clustering for vegetation tables",
+  author  = c(
+    person("Denys", "Vynokurov", role = c("aut", "cre"),
+           email = "denys.vynokurov@gmail.com",
+           comment = c(ORCID = "0000-0001-7003-6680")),
+    person("Helge", "Bruelheide", role = "aut",
+           comment = c(ORCID = "0000-0003-3135-0356"))
+  ),
+  year    = format(Sys.Date(), "%Y"),
+  note    = sprintf("R package version %s", utils::packageVersion("cocktailr")),
+  url     = "https://github.com/dvynokur/cocktailr"
+)
+

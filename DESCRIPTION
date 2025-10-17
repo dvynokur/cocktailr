@@ -1,16 +1,23 @@
 Package: cocktailr
-Title: What the Package Does (One Line, Title Case)
+Title: Fast, Reproducible Cocktail Clustering for Vegetation Tables
 Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Authors@R: c(
+    person("Denys", "Vynokurov", role = c("aut", "cre"),
+           email = "denys.vynokurov@gmail.com",
+           comment = c(ORCID = "0000-0001-7003-6680")),
+    person("Helge", "Bruelheide", role = "aut",
+           comment = c(ORCID = "0000-0003-3135-0356"))
+  )
+Description: Cocktail agglomerative clustering for plots x species data
+    with exact phi coefficients, plus fuzzy memberships, diagnostics,
+    and plotting.
 License: MIT + file LICENSE
 Encoding: UTF-8
+URL: https://github.com/dvynokur/cocktailr
+BugReports: https://github.com/dvynokur/cocktailr/issues
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-Suggests: 
-    testthat (>= 3.0.0)
-Config/testthat/edition: 3
+Depends: R (>= 4.0)
 Imports:
     graphics,
     grDevices,
@@ -18,3 +25,6 @@ Imports:
     stats,
     utils,
     vegan
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

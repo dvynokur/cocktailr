@@ -3,6 +3,7 @@ cocktailr
 
 - [cocktailr](#cocktailr)
   - [Overview](#overview)
+  - [Background](#background)
   - [Installation](#installation)
   - [Quick Start](#quick-start)
   - [Typical workflow](#typical-workflow)
@@ -18,15 +19,30 @@ Fast, reproducible *Cocktail* clustering for vegetation tables.
 
 ## Overview
 
-**cocktailr** provides fast, reproducible *Cocktail* agglomerative
-clustering for **plots × species** presence/absence tables, using sparse
-matrices, exact φ (phi) coefficients from a single cross-product per
-round, and deterministic tie-breaking. It also computes **fuzzy
-species-by-node φ memberships** for every internal cluster node.
+**cocktailr** provides fast and reproducible *Cocktail* clustering of
+vegetation data, identifying groups of co-occurring species from **plots
+× species** tables. It uses optimized sparse-matrix calculations and
+exact φ (phi) coefficients to produce consistent, deterministic results.
+The package can also estimate fuzzy memberships, showing how strongly
+each species is associated with different clusters.
 
-> **TL;DR:** A fast, deterministic R package to turn vegetation **plots
-> × species** data into reproducible *Cocktail* cluster trees with exact
-> φ coefficients.
+## Background
+
+The *Cocktail* method (Bruelheide 2000, 2016) identifies sets of species
+that co-occur more often than expected by chance and merges them
+hierarchically according to the **phi coefficient of association**. Each
+resulting cluster is characterized by its diagnostic species and a
+threshold (*m*) indicating how many group species a plot must contain to
+belong to it.
+
+For details, see the original works: - Bruelheide, H. (2000). *A new
+measure of fidelity and its application to defining species groups.*
+**Journal of Vegetation Science**, 11, 167–178.
+<https://doi.org/10.2307/3236796>  
+- Bruelheide, H. (2016). *Cocktail clustering – a new hierarchical
+agglomerative algorithm for extracting species groups in vegetation
+databases.* **Journal of Vegetation Science**, 27(6), 1297–1307.
+<https://doi.org/10.1111/jvs.12454>
 
 ------------------------------------------------------------------------
 
