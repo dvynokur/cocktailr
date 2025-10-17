@@ -65,22 +65,22 @@ shows non-empty cluster results.
 library(cocktailr)
 
 # Tiny matrix with positive association between sp1 & sp2
-vm_pos <- matrix(c(
+vm <- matrix(c(
   1,1,
   1,0,
   0,0
 ), nrow = 3, byrow = TRUE,
 dimnames = list(paste0("plot", 1:3), c("sp1","sp2")))
 
-res_pos  <- cocktail_cluster(vm_pos, progress = FALSE)
-res_pos$Cluster.height  # should be > 0 (e.g. +0.5)
+res  <- cocktail_cluster(vm, progress = FALSE)
+res$Cluster.height  # should be > 0 (e.g. +0.5)
 #> [1] 0.5
 
 # Parent clusters at φ ≥ 0.3
-labs_pos <- clusters_at_cut(res_pos, phi = 0.3)
-labs_pos
+labs <- clusters_at_cut(res, phi = 0.3)
+labs
 #> [1] "c_1"
-species_in_clusters(res_pos, labels = labs_pos)
+species_in_clusters(res, labels = labs)
 #> $c_1
 #> [1] "sp1" "sp2"
 ```
