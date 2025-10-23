@@ -2,35 +2,27 @@
 % Please edit documentation in R/cocktail_cluster_orig.R
 \name{cocktail_cluster_orig}
 \alias{cocktail_cluster_orig}
-\title{Cocktail clustering (original version)}
+\title{Original Cocktail clustering (reference implementation)}
 \usage{
-cocktail_cluster_orig(veg, to_pa = TRUE, progress = interactive())
+cocktail_cluster_orig(vegmatrix, progress = TRUE)
 }
 \arguments{
-\item{veg}{A matrix or data frame with plots in rows and species in columns.}
+\item{vegmatrix}{Matrix/data.frame, plots in rows, species in columns.}
 
-\item{to_pa}{Logical; convert to presence/absence (values > 0 → 1, else 0).
-Default \code{TRUE}.}
-
-\item{progress}{Logical; show a text progress bar. Default \code{interactive()}.}
+\item{progress}{Logical; show a text progress bar.}
 }
 \value{
-A list of class \code{"cocktail"} with components:
-\itemize{
-\item \code{Cluster.species} — integer matrix (n_merges × n_species): species membership per merge.
-\item \code{Cluster.info}    — integer matrix (n_merges × 2): k (species per node) and m (threshold).
-\item \code{Plot.cluster}    — integer matrix (n_plots × n_merges): plot membership per merge.
-\item \code{Cluster.merged}  — integer matrix (n_merges × 2): left/right children per merge
-(negative = original species index; positive = earlier merge index).
-\item \code{Cluster.height}  — numeric vector length n_merges: φ at each merge.
-\item \code{species}, \code{plots} — character vectors of names used.
-}
+A list with Cluster.species, Cluster.info, Plot.cluster, Cluster.merged, Cluster.height, species, plots.
 }
 \description{
-Runs the original Cocktail clustering on a plots × species
-matrix. Converts to presence/absence by default, computes φ-based merges,
-and determines per-cluster m using expected vs. observed frequencies.
+Temporary reference implementation to compare with \code{cocktail_cluster()}.
 }
-\references{
-Bruelheide (2000, 2016)
+\details{
+Run the published Cocktail agglomeration algorithm on a plots × species table.
+}
+\examples{
+\donttest{
+m <- as.matrix(vegan::dune); m(m > 0) <- 1L
+res <- cocktail_cluster_orig(m, progress = FALSE)
+}
 }
