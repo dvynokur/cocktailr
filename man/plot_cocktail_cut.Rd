@@ -2,21 +2,22 @@
 % Please edit documentation in R/plot_cocktail_cut.R
 \name{plot_cocktail_cut}
 \alias{plot_cocktail_cut}
-\title{Plot Cocktail dendrogram from a phi cut (experimental)}
+\title{Plot Cocktail dendrogram to PDF}
 \usage{
 plot_cocktail_cut(
   x,
   file,
-  phi_cut,
-  tip_label = c("c_id", "id"),
-  show_k = TRUE,
-  show_singletons = TRUE,
+  page_size = 300,
   width_in = NULL,
   height_in = 10,
-  cex_labels = 0.7,
+  cex_labels = 0.3,
+  bands_phi = NULL,
   palette = "Set3",
   alpha_fill = 0.18,
-  alpha_border = 0.65
+  alpha_border = 0.65,
+  label_clusters = FALSE,
+  cex_clusters = 0.6,
+  circle_inch = 0.1
 )
 }
 \arguments{
@@ -25,15 +26,8 @@ components \code{Cluster.species}, \code{Cluster.merged}, and \code{Cluster.heig
 
 \item{file}{Path to the output PDF.}
 
-\item{phi_cut}{Numeric in (-1,1); draw only merges at/below this height and
-label tips by the parent groups at/above this cut.}
-
-\item{tip_label}{"c_id" (default) or "id" for group labels at tips.}
-
-\item{show_k}{Logical; if TRUE, append " (k=\if{html}{\out{<n>}})" to parent labels.}
-
-\item{show_singletons}{Logical; if TRUE (default) show species that are not in
-any parent at the cut as grey tiles (without trunks) and label them.}
+\item{page_size}{Integer, number of tips per page. Use
+\code{ncol(x$Cluster.species)} to place all tips on a single page.}
 
 \item{width_in}{PDF width in inches. If \code{NULL}, a width is chosen
 automatically (capped at 150 inches) based on \code{page_size}.}
@@ -42,14 +36,40 @@ automatically (capped at 150 inches) based on \code{page_size}.}
 
 \item{cex_labels}{Numeric expansion factor for tip labels on the x-axis.}
 
+\item{bands_phi}{Numeric or \code{NULL}. If given, draw background bands for
+parent clusters with \eqn{\phi \ge \mathrm{bands\_phi}}, and also draw a
+dashed horizontal line at this \eqn{\phi} level across each page.}
+
 \item{palette}{Color palette name for \code{grDevices::hcl.colors()}
 (e.g., \code{"Set3"}, \code{"Dark2"}, \code{"Paired"}) or \code{"rainbow"}.}
 
 \item{alpha_fill, alpha_border}{Numeric alpha levels (0–1) for band fill and border.}
+
+\item{label_clusters}{Logical/character. One of \code{FALSE} (default),
+\code{"all"}, or \code{"phi"}. If \code{"all"}, label every internal node
+(merge). If \code{"phi"}, label cluster numbers at the intersections of the
+cut \code{bands_phi} with vertical branches (parent clusters at/above
+\code{bands_phi}). Labels correspond to node indices (same as \code{assign_releves()}),
+but shown without the \code{"c_"} prefix.}
+
+\item{cex_clusters}{Numeric expansion factor for cluster-number text (default 0.6).}
+
+\item{circle_inch}{Circle radius (inches) for the white/black bubble (default 0.1).}
 }
 \value{
-Invisibly returns NULL after writing a PDF.
+Creates a PDF on disk; returns \code{NULL} invisibly.
 }
 \description{
-Plot Cocktail dendrogram from a phi cut (experimental)
+Draw a dendrogram-style plot of a fitted Cocktail clustering and write it to
+a PDF file. Species (tips) are arranged left-to-right in the same order used
+by the original algorithm, and the y-axis shows the \eqn{\phi} height of each
+merge. Optionally, highlight “parent” clusters at or above a chosen cut and
+draw a dashed horizontal line at that cut.
+}
+\details{
+Species order is reproduced from the original Cocktail implementation by
+sorting the per-tip membership strings derived from \code{x$Cluster.species}.
+Large trees are automatically paginated using \code{page_size}; the device
+width grows with the number of tips on a page but is capped to avoid
+unwieldy PDFs.
 }
