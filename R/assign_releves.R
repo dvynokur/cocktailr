@@ -1,256 +1,377 @@
-#' Assign plots to Cocktail groups (strict or fuzzy)
+#' Assign relevés (plots) to Cocktail groups or partition them
 #'
 #' @description
-#' Assign each plot to one parent Cocktail group at a given \eqn{\phi} cut.
-#' In **strict** mode, groups are scored by the summed (optionally transformed)
-#' covers of their member species. In **fuzzy** mode, species are weighted by
-#' their \eqn{\phi} values against the parent groups (computed from
-#' \code{x$Plot.cluster}), and plot scores are cover–\eqn{\phi} weighted sums.
+#' Assign plots using the Cocktail tree (`x`) in several ways:
 #'
-#' @param x A Cocktail result (list with \code{Cluster.species}, \code{Cluster.merged},
-#'   \code{Cluster.height}; typically from \code{cocktail_cluster()}).
-#' @param vegmatrix Numeric matrix/data.frame of covers with plots in rows and species
-#'   in columns. Missing values are treated as 0.
-#' @param mode Assignment mode: \code{"strict"} or \code{"fuzzy"}.
-#' @param phi Numeric \eqn{\phi} cut (between 0 and 1) used to define parent clusters.
-#' @param cover_transform Transformation applied to covers before scoring:
-#'   \code{"sqrt"} (default), \code{"none"}, or \code{"log1p"}.
-#' @param compare Rule for choosing a winner per plot:
-#'   \itemize{
-#'     \item \code{"max"} — assign only if there is a unique maximum score; otherwise \code{"not assigned"}.
-#'     \item \code{"one_vs_rest"} — assign only if the best score is strictly greater than
-#'           the sum of all other groups’ scores; otherwise \code{"not assigned"}.
-#'   }
-#' @param min_cover Numeric threshold for **raw** (pre-transform) cover, expressed in percent
-#'   of the plot (between 0 and 100). A plot can be assigned to a group only if the sum of raw
-#'   covers of that group’s species in the plot is at least this value. Default is 0.
-#' @param min_group_size Integer \eqn{\ge} 1. After initial assignment, any group with fewer
-#'   than this many plots is relabeled \code{"not assigned"}. Default is 1 (no collapsing).
-#' @param phi_mode (Fuzzy mode only) how to treat per-species \eqn{\phi} weights:
-#'   \code{"thresh"} (set \eqn{\phi <} \code{phi} to 0),
-#'   \code{"positive"} (set \eqn{\phi \le 0} to 0; default),
-#'   or \code{"all"} (keep raw values; negatives penalize).
+#' - **"topology_only"** *(default)* — Use topology from `x$Plot.cluster`
+#'   at a given `phi_cut` (or a user-specified set of parent clusters).
+#'   Each plot is assigned to the **unique** group (if any) where it is a member
+#'   at that cut; ties or no-membership → `"not assigned"`.
+#'
+#' - **"topology_cover"** — Like *topology_only*, but when `vegmatrix` contains cover
+#'   values, score parent groups by **sum of covers** of their member species in each plot,
+#'   restricted to plots that meet the group’s m-rule in `x$Plot.cluster`.
+#'   Scores are **per-plot normalised** (divide by the row sum across candidate groups)
+#'   before taking a unique maximum. Plots failing `min_cover` for a group are ineligible.
+#'
+#' - **"cover_strict"** — Ignore topology membership and score each plot–group pair as the
+#'   **sum of transformed covers** across the group’s species. Unique maximum wins; otherwise
+#'   `"not assigned"`. Uses only parent groups at `phi_cut` (or `clusters` if given).
+#'
+#' - **"cover_fuzzy"** — Compute a species × node \eqn{\phi} matrix from `x$Plot.cluster`,
+#'   restrict to parent groups at `phi_cut` (or `clusters`), set non-positive \eqn{\phi} to 0,
+#'   then score plots by (transformed cover) × \eqn{\phi} weights. Unique maximum wins.
+#'
+#' - **"partition_kmeans"** — Build a feature matrix from `x$Plot.cluster` filtered to
+#'   parent groups at `phi_cut` (or `clusters`), **deduplicate identical columns**, optionally
+#'   **standardize features** (`feature_scale = TRUE`), then do k-means into `k_partition` groups.
+#'   For large vegetation tables, this can be slow.
+#'
+#' - **"partition_hclust"** — Same features as above; compute distances (default
+#'   Manhattan), then hierarchical clustering (`clust_method`, default UPGMA/"average")
+#'   and cut into `k_partition` groups. **Clusters are relabeled** in left-to-right
+#'   dendrogram order for readability. For large vegetation tables, this can be slow.
+#'
+#' @param x A Cocktail result (list) with at least `Cluster.species`, `Cluster.merged`,
+#'   `Cluster.height`, and `Plot.cluster` (from `cocktail_cluster()`).
+#' @param vegmatrix Optional numeric matrix/data.frame of **covers** with plots in rows
+#'   and species in columns (needed for *_cover* strategies). Missing values are treated as 0.
+#' @param strategy One of
+#'   `c("topology_only","topology_cover","cover_strict","cover_fuzzy",
+#'      "partition_kmeans","partition_hclust")`.
+#' @param phi_cut Numeric between 0 and 1 (inclusive). Cut level used to choose
+#'   **parent clusters** (unless `clusters` is supplied).
+#' @param clusters Optional vector of cluster IDs to use instead of `phi_cut`.
+#'   Accepts character labels like `"c_1333"` or integer IDs like `1333`.
+#' @param cover_transform Cover transform used by cover-based strategies:
+#'   `c("sqrt","none","log1p")`. Default `"sqrt"`.
+#' @param min_cover Numeric percent between 0 and 100 (inclusive). A plot is eligible
+#'   for a group only if the **raw (pre-transform)** sum of that group’s species covers
+#'   in the plot is at least this value. Default 0.
+#' @param k_partition Positive integer, required for partitioning strategies.
+#' @param kmeans_seed Optional scalar to set the RNG seed for k-means reproducibility.
+#' @param dist_method Distance for `"partition_hclust"` (default `"manhattan"`).
+#' @param clust_method Linkage for `"partition_hclust"` (default `"average"`).
+#' @param use_parallelDist Logical. If `TRUE`, try `parallelDist::parDist()` for distance.
+#'   Falls back to `stats::dist()` if the package is unavailable.
+#' @param use_fastcluster Logical. If `TRUE`, try `fastcluster::hclust()` for agglomeration.
+#'   Falls back to `stats::hclust()` if the package is unavailable.
+#' @param feature_scale Logical; if `TRUE` (default), standardize features
+#'   (columns) for partitioning strategies to equalize scale.
+#' @param min_group_size Integer at least 1. After assignment/partitioning, any group with fewer
+#'   than this many plots is relabeled `"not assigned"`. Default 1 (no collapsing).
 #'
 #' @details
-#' Parent clusters are the “topmost” nodes with height \eqn{\ge} \code{phi} (i.e., nodes above the
-#' cut that have no ancestor also above the cut).
-#' In strict mode, the score for a plot–group pair is the sum of transformed covers across species
-#' that belong to that parent group.
-#' In fuzzy mode, a species-by-nodes \eqn{\phi} matrix is computed for all internal nodes from
-#' \code{x$Plot.cluster}, restricted to the parent groups at \code{phi}, optionally filtered by
-#' \code{phi_mode}, and plot scores are obtained by multiplying transformed covers by these \eqn{\phi}
-#' weights. The \code{compare} rule then determines whether a unique winner exists for each plot.
+#' **Parent clusters** are the “topmost” nodes with height at least `phi_cut`
+#' (no ancestor also at or above the cut). If `clusters` is supplied, it must
+#' identify valid Cocktail node IDs/labels; mixed types are allowed (e.g., `c("c_12", 25)`).
 #'
-#' The \code{min_cover} check is applied in both modes (using raw, untransformed covers); ineligible
-#' plot–group pairs are discarded prior to comparison. Finally, \code{min_group_size} can collapse
-#' very small winning groups to \code{"not assigned"}.
+#' For cover-based scoring, species columns of `vegmatrix` are aligned to
+#' `colnames(x$Cluster.species)`. Non-overlapping species are ignored. If your covers are
+#' on **ordinal** scales (e.g., 1–5, Braun–Blanquet codes), results are computed but a
+#' message is emitted recommending percentage covers for best performance.
 #'
-#' @return A named character vector giving the assigned group for each plot. An attribute
-#'   \code{"details"} is attached with inputs and diagnostics, including the score matrix and
-#'   a data frame of per-plot summaries.
+#' **Runtime note:** partitioning on **large vegetation tables** (many plots and/or many
+#' clusters kept at the cut) can take a long time due to distance and clustering steps.
 #'
-#' @seealso \code{\link{cocktail_fuzzy}}
+#' @return
+#' A named character vector of group labels per plot (or `"not assigned"`). The return
+#' value has an attribute `"details"` with:
+#' \itemize{
+#'   \item `strategy`, `phi_cut`, `clusters_used`, `feature_scale`
+#'   \item `scores` (for scoring strategies) or `partition` (data.frame with cluster IDs)
+#'   \item `parents` (parent node IDs used)
+#'   \item `min_cover`, `cover_transform`
+#'   \item `min_group_size`, `collapsed_groups`
+#' }
+#'
+#' @seealso \code{\link{clusters_at_cut}}
 #' @export
 
 assign_releves <- function(
     x,
-    vegmatrix,
-    mode            = c("strict", "fuzzy"),
-    phi             = 0.30,
-    cover_transform = c("sqrt", "none", "log1p"),
-    compare         = c("max", "one_vs_rest"),
-    min_cover       = 0,
-    min_group_size  = 1,
-    phi_mode        = NULL   # fuzzy-only; if provided in strict → error
+    vegmatrix        = NULL,
+    strategy         = c("topology_only","topology_cover","cover_strict","cover_fuzzy",
+                         "partition_kmeans","partition_hclust"),
+    phi_cut          = 0.30,
+    clusters         = NULL,
+    cover_transform  = c("sqrt","none","log1p"),
+    min_cover        = 0,
+    k_partition      = NULL,
+    kmeans_seed      = NULL,
+    dist_method      = "manhattan",
+    clust_method     = "average",
+    use_parallelDist = FALSE,
+    use_fastcluster  = FALSE,
+    feature_scale    = TRUE,
+    min_group_size   = 1
 ) {
   ## ---- helpers ----
-  .cover_transform <- function(xx, how) {
-    if (how == "sqrt") sqrt(pmax(xx, 0))
-    else if (how == "log1p") log1p(pmax(xx, 0))
-    else xx
+  .is_cocktail <- function(obj) {
+    is.list(obj) && all(c("Cluster.species","Cluster.merged","Cluster.height","Plot.cluster") %in% names(obj))
   }
-  .top_parent_clusters <- function(CM, H, cut) {
+  .cover_transform <- function(xx, how) {
+    if (how == "sqrt") sqrt(pmax(xx, 0)) else if (how == "log1p") log1p(pmax(xx, 0)) else xx
+  }
+  .parents_at_cut <- function(CM, H, cut) {
     idx <- which(H >= cut); if (!length(idx)) return(integer(0))
     kids <- CM[idx, , drop = FALSE]
     children <- unique(as.integer(kids[kids > 0]))
     sort(setdiff(idx, intersect(idx, children)))
   }
-  .is_cocktail_object <- function(obj) {
-    is.list(obj) && all(c("Cluster.species","Cluster.merged","Cluster.height") %in% names(obj))
+  .parse_clusters_arg <- function(v) {
+    if (is.null(v) || !length(v)) return(NULL)
+    lab_like <- suppressWarnings(grepl("^c_\\d+$", v))
+    ids <- rep(NA_integer_, length(v))
+    ids[lab_like] <- as.integer(sub("^c_", "", v[lab_like]))
+    ids[!lab_like] <- suppressWarnings(as.integer(v[!lab_like]))
+    ids
+  }
+  .dedup_cols_by_key <- function(M) {
+    if (!ncol(M)) return(list(M = M, keep = integer(0)))
+    keys <- apply(M, 2L, function(col) paste0(as.integer(round(as.numeric(col), 12)), collapse = ""))
+    last_keep <- vapply(split(seq_along(keys), keys), function(ix) ix[length(ix)], integer(1))
+    ord <- sort(last_keep)
+    list(M = M[, ord, drop = FALSE], keep = ord)
+  }
+  .relabel_by_first_leaf <- function(hc, grp) {
+    ord <- hc$order
+    labs <- hc$labels
+    # map labels to integer positions
+    pos <- match(labs, labs[ord])
+    pos_first <- tapply(seq_along(labs), grp, function(ix) min(pos[ix]))
+    old_ids <- as.integer(names(pos_first))
+    new_ids <- seq_along(old_ids)[order(unlist(pos_first))]
+    map <- stats::setNames(new_ids, old_ids)
+    unname(map[as.character(grp)])
   }
 
   ## ---- args / checks ----
-  mode            <- match.arg(mode)
+  strategy        <- match.arg(strategy)
   cover_transform <- match.arg(cover_transform)
-  compare         <- match.arg(compare)
 
-  if (!.is_cocktail_object(x)) {
-    stop("x must be a Cocktail object (with Cluster.species, Cluster.merged, Cluster.height).")
+  if (!.is_cocktail(x)) {
+    stop("x must be a Cocktail object with Cluster.species, Cluster.merged, Cluster.height, and Plot.cluster.")
   }
   CS <- x$Cluster.species
   CM <- x$Cluster.merged
   H  <- x$Cluster.height
+  PC <- x$Plot.cluster
   spp_all <- colnames(CS)
+  plot_names <- rownames(PC); if (is.null(plot_names)) plot_names <- paste0("plot_", seq_len(nrow(PC)))
 
-  # vegmatrix
-  vm <- as.matrix(vegmatrix)
-  vm[is.na(vm)] <- 0
-  storage.mode(vm) <- "double"
-  if (is.null(colnames(vm))) stop("vegmatrix must have species column names.")
-  if (is.null(rownames(vm))) rownames(vm) <- paste0("plot_", seq_len(nrow(vm)))
-
-  # clip thresholds
-  min_cover <- max(0, min(100, as.numeric(min_cover)))
-  min_group_size <- as.integer(min_group_size)
-  if (is.na(min_group_size) || min_group_size < 1) min_group_size <- 1L
-
-  # strict must not get phi_mode
-  if (mode == "strict" && !is.null(phi_mode)) {
-    stop("`phi_mode` is only allowed when mode = 'fuzzy'.")
+  # choose parent nodes
+  parent_ids <- if (!is.null(clusters)) {
+    ids <- .parse_clusters_arg(clusters)
+    if (any(is.na(ids))) stop("`clusters` must be labels like 'c_123' or integer node IDs.")
+    ids
+  } else {
+    .parents_at_cut(CM, H, phi_cut)
   }
+  if (!length(parent_ids)) stop("No parent clusters available (check phi_cut or clusters).")
+  parent_labs <- paste0("c_", parent_ids)
 
-  # parent clusters at/above phi
-  top_idx <- .top_parent_clusters(CM, H, phi)
-  if (!length(top_idx)) stop("No parent clusters at or above phi = ", phi)
-  group_names <- paste0("c_", top_idx)
-
-  # align species
-  common <- intersect(colnames(vm), spp_all)
-  if (!length(common)) stop("No overlapping species between vegmatrix and clustering result.")
-  vm <- vm[, common, drop = FALSE]
-  W  <- .cover_transform(vm, cover_transform)  # transformed covers
-  vm_raw <- vm                                 # raw covers for min_cover
-
-  # group species sets (used for scoring in strict and for min_cover in both)
-  groups_species <- lapply(top_idx, function(i) spp_all[CS[i, ] == 1L])
-  names(groups_species) <- group_names
-
-  # precompute RAW cover per group (min_cover eligibility)
-  S_raw <- matrix(0, nrow = nrow(vm_raw), ncol = length(groups_species),
-                  dimnames = list(rownames(vm_raw), group_names))
-  for (g in seq_along(groups_species)) {
-    sp <- intersect(groups_species[[g]], colnames(vm_raw))
-    if (length(sp)) S_raw[, g] <- rowSums(vm_raw[, sp, drop = FALSE])
-  }
-  S_raw <- pmin(S_raw, 100)  # cap to 100%
-
-  ## ---- scores ----
-  if (mode == "strict") {
-    # sum of transformed covers over group species
-    S <- matrix(0, nrow = nrow(W), ncol = length(groups_species),
-                dimnames = list(rownames(W), group_names))
-    for (g in seq_along(groups_species)) {
-      sp <- intersect(groups_species[[g]], colnames(W))
-      if (length(sp)) S[, g] <- rowSums(W[, sp, drop = FALSE])
+  # covers (needed for *_cover)
+  need_cover <- strategy %in% c("topology_cover","cover_strict","cover_fuzzy")
+  if (need_cover) {
+    if (is.null(vegmatrix)) stop("`vegmatrix` (covers) is required for strategy = ", strategy, ".")
+    vm <- as.matrix(vegmatrix); vm[is.na(vm)] <- 0
+    storage.mode(vm) <- "double"
+    if (is.null(colnames(vm))) stop("`vegmatrix` must have species column names.")
+    if (is.null(rownames(vm))) rownames(vm) <- plot_names
+    # align
+    common <- intersect(colnames(vm), spp_all)
+    if (!length(common)) stop("No overlapping species between covers and Cocktail species.")
+    vm <- vm[, common, drop = FALSE]
+    # quick diagnostics
+    if (all(vm %in% c(0,1))) {
+      message("Covers appear binary; cover-based strategies will behave similarly to presence.")
+    } else if (length(sort(unique(as.numeric(vm)))) <= 10) {
+      message("Covers look ordinal/limited in range; percentage covers are recommended for best results.")
     }
   } else {
-    # fuzzy: compute phi from Cocktail core (Plot.cluster) for ALL nodes, then subset to parents
-    if (is.null(x$Plot.cluster)) stop("x$Plot.cluster is required for fuzzy mode.")
+    vm <- NULL
+  }
 
-    # presence/absence (0/1 doubles)
-    X <- (vm > 0); storage.mode(X) <- "double"     # N × nsp
-    N <- nrow(X); nsp <- ncol(X)
+  # hygiene
+  min_cover <- max(0, min(100, as.numeric(min_cover)))
+  min_group_size <- as.integer(min_group_size)
+  if (!is.finite(min_group_size) || min_group_size < 1) min_group_size <- 1L
 
-    G <- as.matrix(x$Plot.cluster > 0); storage.mode(G) <- "double"  # N × n_nodes
+  ## ---- group species sets and membership ----
+  groups_species <- lapply(parent_ids, function(i) spp_all[CS[i, ] == 1L])
+  names(groups_species) <- parent_labs
+
+  keep_cols <- intersect(colnames(PC), parent_labs)
+  if (!length(keep_cols)) stop("Internal mismatch: no Plot.cluster columns for chosen parents.")
+  Gcut <- as.matrix(PC[, keep_cols, drop = FALSE]); storage.mode(Gcut) <- "double"
+
+  assigned <- rep("not assigned", nrow(Gcut)); names(assigned) <- plot_names
+  details <- list(strategy = strategy, phi_cut = phi_cut, clusters_used = parent_labs,
+                  min_cover = min_cover, cover_transform = cover_transform,
+                  feature_scale = feature_scale,
+                  min_group_size = min_group_size)
+
+  ## ---- strategies ----
+  if (strategy == "topology_only") {
+    hits <- Gcut > 0
+    row_hits <- rowSums(hits)
+    winner <- max.col(hits, ties.method = "first")
+    ok <- row_hits == 1
+    assigned[ok] <- colnames(Gcut)[winner[ok]]
+    details$scores <- NULL
+
+  } else if (strategy == "topology_cover") {
+    S_raw <- matrix(0, nrow = nrow(Gcut), ncol = ncol(Gcut),
+                    dimnames = list(rownames(vm), colnames(Gcut)))
+    for (g in seq_along(groups_species)) {
+      sp <- intersect(groups_species[[g]], colnames(vm))
+      if (length(sp)) S_raw[, g] <- rowSums(vm[, sp, drop = FALSE])
+    }
+    eligible <- (Gcut > 0) & (S_raw >= min_cover)
+    S <- S_raw
+    S[!eligible] <- -Inf
+    row_tot <- rowSums(pmax(S, 0), na.rm = TRUE)
+    scale_vec <- ifelse(row_tot > 0, 1 / row_tot, 0)
+    S_scaled <- S * scale_vec
+    winner <- max.col(S_scaled, ties.method = "first")
+    best <- S_scaled[cbind(seq_len(nrow(S_scaled)), winner)]
+    ties <- apply(S_scaled, 1, function(v) sum(v == max(v)))
+    ok <- is.finite(best) & (ties == 1)
+    assigned[ok] <- colnames(S_scaled)[winner[ok]]
+    details$scores <- S_scaled
+
+  } else if (strategy == "cover_strict") {
+    W <- .cover_transform(vm, cover_transform)
+    S_raw <- matrix(0, nrow = nrow(W), ncol = length(groups_species),
+                    dimnames = list(rownames(W), names(groups_species)))
+    for (g in seq_along(groups_species)) {
+      sp <- intersect(groups_species[[g]], colnames(W))
+      if (length(sp)) S_raw[, g] <- rowSums(W[, sp, drop = FALSE])
+    }
+    S_elig <- matrix(0, nrow = nrow(vm), ncol = length(groups_species),
+                     dimnames = list(rownames(vm), names(groups_species)))
+    for (g in seq_along(groups_species)) {
+      sp <- intersect(groups_species[[g]], colnames(vm))
+      if (length(sp)) S_elig[, g] <- rowSums(vm[, sp, drop = FALSE])
+    }
+    S <- S_raw
+    S[S_elig < min_cover] <- -Inf
+    winner <- max.col(S, ties.method = "first")
+    best <- S[cbind(seq_len(nrow(S)), winner)]
+    ties <- apply(S, 1, function(v) sum(v == max(v)))
+    ok <- is.finite(best) & (ties == 1)
+    assigned[ok] <- colnames(S)[winner[ok]]
+    details$scores <- S
+
+  } else if (strategy == "cover_fuzzy") {
+    X <- (vm > 0); storage.mode(X) <- "double"
+    N <- nrow(X)
+    G <- as.matrix(PC > 0); storage.mode(G) <- "double"
     if (nrow(G) != N) stop("Internal mismatch: Plot.cluster has different number of plots.")
-    n_nodes <- ncol(G)
-
-    # a = t(X) %*% G  (nsp × n_nodes)
     a  <- crossprod(X, G)
-    p  <- colSums(X)     # nsp
-    g1 <- colSums(G)     # n_nodes
-
-    # broadcast margins
-    b <- matrix(p,  nrow = nsp, ncol = n_nodes) - a
-    c <- matrix(g1, nrow = nsp, ncol = n_nodes, byrow = TRUE) - a
-    d <- (N - matrix(g1, nrow = nsp, ncol = n_nodes, byrow = TRUE)) - b
-
+    p  <- colSums(X)
+    g1 <- colSums(G)
+    b <- matrix(p,  nrow = ncol(X), ncol = ncol(G)) - a
+    c <- matrix(g1, nrow = ncol(X), ncol = ncol(G), byrow = TRUE) - a
+    d <- (N - matrix(g1, nrow = ncol(X), ncol = ncol(G), byrow = TRUE)) - b
     den <- sqrt((a + c) * (b + d) * (a + b) * (c + d))
     Phi_all <- (a * d - b * c) / den
     Phi_all[!is.finite(den) | den <= 0] <- 0
-
-    colnames(Phi_all) <- paste0("c_", seq_len(n_nodes))
+    colnames(Phi_all) <- colnames(PC)
     rownames(Phi_all) <- colnames(X)
-
-    # keep only parent columns at the cut
-    keep_cols <- intersect(colnames(Phi_all), group_names)
-    Phi <- Phi_all[, keep_cols, drop = FALSE]
-
-    # phi_mode default + filtering
-    phi_mode <- if (is.null(phi_mode)) "positive" else match.arg(phi_mode, c("thresh","positive","all"))
-    if (phi_mode == "thresh") {
-      Phi[Phi <  phi] <- 0
-    } else if (phi_mode == "positive") {
-      Phi[Phi <= 0] <- 0
-    }
-    # scores: cover weights × phi
+    Phi <- Phi_all[, parent_labs, drop = FALSE]
+    Phi[Phi <= 0] <- 0
+    W <- .cover_transform(vm, cover_transform)
     S <- as.matrix(W %*% Phi)
-    # ensure final column order matches group_names
-    S <- S[, group_names, drop = FALSE]
+    S_elig <- matrix(0, nrow = nrow(vm), ncol = length(groups_species),
+                     dimnames = list(rownames(vm), names(groups_species)))
+    for (g in seq_along(groups_species)) {
+      sp <- intersect(groups_species[[g]], colnames(vm))
+      if (length(sp)) S_elig[, g] <- rowSums(vm[, sp, drop = FALSE])
+    }
+    S[S_elig < min_cover] <- -Inf
+    winner <- max.col(S, ties.method = "first")
+    best <- S[cbind(seq_len(nrow(S)), winner)]
+    ties <- apply(S, 1, function(v) sum(v == max(v)))
+    ok <- is.finite(best) & (ties == 1)
+    assigned[ok] <- colnames(S)[winner[ok]]
+    details$scores <- S
+
+  } else if (strategy %in% c("partition_kmeans","partition_hclust")) {
+    if (is.null(k_partition) || !is.finite(k_partition) || k_partition < 1L) {
+      stop("`k_partition` must be a positive integer for partitioning strategies.")
+    }
+    ded <- .dedup_cols_by_key(Gcut)
+    F <- ded$M
+    if (!ncol(F)) stop("No informative features remain after deduplication.")
+    F_sc <- if (isTRUE(feature_scale)) scale(F) else as.matrix(F)
+
+    if (strategy == "partition_kmeans") {
+      if (!is.null(kmeans_seed)) set.seed(as.integer(kmeans_seed))
+      km <- stats::kmeans(F_sc, centers = as.integer(k_partition), iter.max = 100, nstart = 10)
+      grp <- km$cluster
+      assigned <- paste0("k", grp)
+      names(assigned) <- rownames(F_sc)
+      if (min_group_size > 1) {
+        counts <- table(assigned)
+        small  <- names(counts)[counts < min_group_size]
+        if (length(small)) assigned[assigned %in% small] <- "not assigned"
+      }
+      details$partition <- data.frame(plot = names(assigned), cluster = assigned, stringsAsFactors = FALSE)
+
+    } else {
+      if (use_parallelDist && !requireNamespace("parallelDist", quietly = TRUE)) {
+        warning("parallelDist not available; falling back to stats::dist().")
+        use_parallelDist <- FALSE
+      }
+      d <- if (use_parallelDist) parallelDist::parDist(F_sc, method = dist_method)
+      else stats::dist(F_sc, method = dist_method)
+
+      if (use_fastcluster && !requireNamespace("fastcluster", quietly = TRUE)) {
+        warning("fastcluster not available; falling back to stats::hclust().")
+        use_fastcluster <- FALSE
+      }
+      hc <- if (use_fastcluster) fastcluster::hclust(d, method = clust_method)
+      else stats::hclust(d, method = clust_method)
+
+      grp_cut <- stats::cutree(hc, k = as.integer(k_partition))
+      if (is.null(names(grp_cut))) names(grp_cut) <- rownames(F_sc)
+      grp_cut <- grp_cut[rownames(F_sc)]
+      grp_lbl <- .relabel_by_first_leaf(hc, grp_cut)
+      assigned <- paste0("h", grp_lbl)
+      names(assigned) <- rownames(F_sc)
+
+      if (min_group_size > 1) {
+        counts <- table(assigned)
+        small  <- names(counts)[counts < min_group_size]
+        if (length(small)) assigned[assigned %in% small] <- "not assigned"
+      }
+
+      details$partition <- data.frame(
+        plot = names(grp_lbl),
+        cluster = assigned,
+        cluster_orig = grp_cut,
+        stringsAsFactors = FALSE
+      )
+      details$hclust <- hc
+      details$dist_method <- dist_method
+      details$clust_method <- clust_method
+    }
+  } else {
+    stop("Unknown strategy: ", strategy)
   }
 
-  ## ---- choose winner per plot ----
-  # apply min_cover eligibility: ineligible groups get -Inf
-  if (min_cover > 0) {
-    inelig <- S_raw < min_cover
-    S[inelig] <- -Inf
-  }
-
-  rn <- rownames(S); cn <- colnames(S)
-  best_idx   <- max.col(S, ties.method = "first")
-  best_score <- S[cbind(seq_len(nrow(S)), best_idx)]
-  best_name  <- cn[best_idx]
-
-  # second best (diagnostics)
-  second_score <- apply(S, 1, function(v) {
-    if (length(v) == 1) 0 else sort(v, decreasing = TRUE)[2L]
-  })
-
-  assigned <- rep("not assigned", length(best_idx))
-
-  if (compare == "max") {
-    ties_per_row <- apply(S, 1, function(v) sum(v == max(v)))
-    is_unique <- (ties_per_row == 1) & is.finite(best_score)
-    assigned[is_unique] <- best_name[is_unique]
-  } else { # "one_vs_rest"
-    row_sums <- rowSums(S)
-    rest     <- pmax(row_sums - best_score, 0)
-    ok       <- is.finite(best_score) & (best_score > rest)
-    assigned[ok] <- best_name[ok]
-  }
-
-  # collapse tiny groups
-  collapsed <- character(0)
-  if (min_group_size > 1) {
-    counts <- table(assigned)
-    small  <- names(counts)[counts < min_group_size & names(counts) != "not assigned"]
-    if (length(small)) {
-      assigned[assigned %in% small] <- "not assigned"
-      collapsed <- small
+  if (strategy %in% c("topology_only","topology_cover","cover_strict","cover_fuzzy")) {
+    if (min_group_size > 1) {
+      counts <- table(assigned)
+      small  <- names(counts)[counts < min_group_size & names(counts) != "not assigned"]
+      if (length(small)) assigned[assigned %in% small] <- "not assigned"
+      details$collapsed_groups <- small
+    } else {
+      details$collapsed_groups <- character(0)
     }
   }
 
-  names(assigned) <- rn
-  assignments <- data.frame(
-    plot           = rn,
-    assigned_group = assigned,
-    best_score     = best_score,
-    second_best    = second_score,
-    margin         = best_score - second_score,
-    stringsAsFactors = FALSE
-  )
-
-  out <- stats::setNames(assigned, rn)
-  attr(out, "details") <- list(
-    mode             = mode,
-    phi              = phi,
-    compare          = compare,
-    cover_transform  = cover_transform,
-    min_cover        = min_cover,
-    min_group_size   = min_group_size,
-    collapsed_groups = collapsed,
-    scores           = S,
-    assignments      = assignments
-  )
-  out
+  structure(stats::setNames(assigned, names(assigned)), details = details)
 }

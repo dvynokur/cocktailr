@@ -2,79 +2,122 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign plots to Cocktail groups (strict or fuzzy)}
+\title{Assign relevés (plots) to Cocktail groups or partition them}
 \usage{
 assign_releves(
   x,
-  vegmatrix,
-  mode = c("strict", "fuzzy"),
-  phi = 0.3,
+  vegmatrix = NULL,
+  strategy = c("topology_only", "topology_cover", "cover_strict", "cover_fuzzy",
+    "partition_kmeans", "partition_hclust"),
+  phi_cut = 0.3,
+  clusters = NULL,
   cover_transform = c("sqrt", "none", "log1p"),
-  compare = c("max", "one_vs_rest"),
   min_cover = 0,
-  min_group_size = 1,
-  phi_mode = NULL
+  k_partition = NULL,
+  kmeans_seed = NULL,
+  dist_method = "manhattan",
+  clust_method = "average",
+  use_parallelDist = FALSE,
+  use_fastcluster = FALSE,
+  feature_scale = TRUE,
+  min_group_size = 1
 )
 }
 \arguments{
-\item{x}{A Cocktail result (list with \code{Cluster.species}, \code{Cluster.merged},
-\code{Cluster.height}; typically from \code{cocktail_cluster()}).}
+\item{x}{A Cocktail result (list) with at least \code{Cluster.species}, \code{Cluster.merged},
+\code{Cluster.height}, and \code{Plot.cluster} (from \code{cocktail_cluster()}).}
 
-\item{vegmatrix}{Numeric matrix/data.frame of covers with plots in rows and species
-in columns. Missing values are treated as 0.}
+\item{vegmatrix}{Optional numeric matrix/data.frame of \strong{covers} with plots in rows
+and species in columns (needed for \emph{_cover} strategies). Missing values are treated as 0.}
 
-\item{mode}{Assignment mode: \code{"strict"} or \code{"fuzzy"}.}
+\item{strategy}{One of
+\code{c("topology_only","topology_cover","cover_strict","cover_fuzzy", "partition_kmeans","partition_hclust")}.}
 
-\item{phi}{Numeric \eqn{\phi} cut (between 0 and 1) used to define parent clusters.}
+\item{phi_cut}{Numeric between 0 and 1 (inclusive). Cut level used to choose
+\strong{parent clusters} (unless \code{clusters} is supplied).}
 
-\item{cover_transform}{Transformation applied to covers before scoring:
-\code{"sqrt"} (default), \code{"none"}, or \code{"log1p"}.}
+\item{clusters}{Optional vector of cluster IDs to use instead of \code{phi_cut}.
+Accepts character labels like \code{"c_1333"} or integer IDs like \code{1333}.}
 
-\item{compare}{Rule for choosing a winner per plot:
-\itemize{
-\item \code{"max"} — assign only if there is a unique maximum score; otherwise \code{"not assigned"}.
-\item \code{"one_vs_rest"} — assign only if the best score is strictly greater than
-the sum of all other groups’ scores; otherwise \code{"not assigned"}.
-}}
+\item{cover_transform}{Cover transform used by cover-based strategies:
+\code{c("sqrt","none","log1p")}. Default \code{"sqrt"}.}
 
-\item{min_cover}{Numeric threshold for \strong{raw} (pre-transform) cover, expressed in percent
-of the plot (between 0 and 100). A plot can be assigned to a group only if the sum of raw
-covers of that group’s species in the plot is at least this value. Default is 0.}
+\item{min_cover}{Numeric percent between 0 and 100 (inclusive). A plot is eligible
+for a group only if the \strong{raw (pre-transform)} sum of that group’s species covers
+in the plot is at least this value. Default 0.}
 
-\item{min_group_size}{Integer \eqn{\ge} 1. After initial assignment, any group with fewer
-than this many plots is relabeled \code{"not assigned"}. Default is 1 (no collapsing).}
+\item{k_partition}{Positive integer, required for partitioning strategies.}
 
-\item{phi_mode}{(Fuzzy mode only) how to treat per-species \eqn{\phi} weights:
-\code{"thresh"} (set \eqn{\phi <} \code{phi} to 0),
-\code{"positive"} (set \eqn{\phi \le 0} to 0; default),
-or \code{"all"} (keep raw values; negatives penalize).}
+\item{kmeans_seed}{Optional scalar to set the RNG seed for k-means reproducibility.}
+
+\item{dist_method}{Distance for \code{"partition_hclust"} (default \code{"manhattan"}).}
+
+\item{clust_method}{Linkage for \code{"partition_hclust"} (default \code{"average"}).}
+
+\item{use_parallelDist}{Logical. If \code{TRUE}, try \code{parallelDist::parDist()} for distance.
+Falls back to \code{stats::dist()} if the package is unavailable.}
+
+\item{use_fastcluster}{Logical. If \code{TRUE}, try \code{fastcluster::hclust()} for agglomeration.
+Falls back to \code{stats::hclust()} if the package is unavailable.}
+
+\item{feature_scale}{Logical; if \code{TRUE} (default), standardize features
+(columns) for partitioning strategies to equalize scale.}
+
+\item{min_group_size}{Integer at least 1. After assignment/partitioning, any group with fewer
+than this many plots is relabeled \code{"not assigned"}. Default 1 (no collapsing).}
 }
 \value{
-A named character vector giving the assigned group for each plot. An attribute
-\code{"details"} is attached with inputs and diagnostics, including the score matrix and
-a data frame of per-plot summaries.
+A named character vector of group labels per plot (or \code{"not assigned"}). The return
+value has an attribute \code{"details"} with:
+\itemize{
+\item \code{strategy}, \code{phi_cut}, \code{clusters_used}, \code{feature_scale}
+\item \code{scores} (for scoring strategies) or \code{partition} (data.frame with cluster IDs)
+\item \code{parents} (parent node IDs used)
+\item \code{min_cover}, \code{cover_transform}
+\item \code{min_group_size}, \code{collapsed_groups}
+}
 }
 \description{
-Assign each plot to one parent Cocktail group at a given \eqn{\phi} cut.
-In \strong{strict} mode, groups are scored by the summed (optionally transformed)
-covers of their member species. In \strong{fuzzy} mode, species are weighted by
-their \eqn{\phi} values against the parent groups (computed from
-\code{x$Plot.cluster}), and plot scores are cover–\eqn{\phi} weighted sums.
+Assign plots using the Cocktail tree (\code{x}) in several ways:
+\itemize{
+\item \strong{"topology_only"} \emph{(default)} — Use topology from \code{x$Plot.cluster}
+at a given \code{phi_cut} (or a user-specified set of parent clusters).
+Each plot is assigned to the \strong{unique} group (if any) where it is a member
+at that cut; ties or no-membership → \code{"not assigned"}.
+\item \strong{"topology_cover"} — Like \emph{topology_only}, but when \code{vegmatrix} contains cover
+values, score parent groups by \strong{sum of covers} of their member species in each plot,
+restricted to plots that meet the group’s m-rule in \code{x$Plot.cluster}.
+Scores are \strong{per-plot normalised} (divide by the row sum across candidate groups)
+before taking a unique maximum. Plots failing \code{min_cover} for a group are ineligible.
+\item \strong{"cover_strict"} — Ignore topology membership and score each plot–group pair as the
+\strong{sum of transformed covers} across the group’s species. Unique maximum wins; otherwise
+\code{"not assigned"}. Uses only parent groups at \code{phi_cut} (or \code{clusters} if given).
+\item \strong{"cover_fuzzy"} — Compute a species × node \eqn{\phi} matrix from \code{x$Plot.cluster},
+restrict to parent groups at \code{phi_cut} (or \code{clusters}), set non-positive \eqn{\phi} to 0,
+then score plots by (transformed cover) × \eqn{\phi} weights. Unique maximum wins.
+\item \strong{"partition_kmeans"} — Build a feature matrix from \code{x$Plot.cluster} filtered to
+parent groups at \code{phi_cut} (or \code{clusters}), \strong{deduplicate identical columns}, optionally
+\strong{standardize features} (\code{feature_scale = TRUE}), then do k-means into \code{k_partition} groups.
+For large vegetation tables, this can be slow.
+\item \strong{"partition_hclust"} — Same features as above; compute distances (default
+Manhattan), then hierarchical clustering (\code{clust_method}, default UPGMA/"average")
+and cut into \code{k_partition} groups. \strong{Clusters are relabeled} in left-to-right
+dendrogram order for readability. For large vegetation tables, this can be slow.
+}
 }
 \details{
-Parent clusters are the “topmost” nodes with height \eqn{\ge} \code{phi} (i.e., nodes above the
-cut that have no ancestor also above the cut).
-In strict mode, the score for a plot–group pair is the sum of transformed covers across species
-that belong to that parent group.
-In fuzzy mode, a species-by-nodes \eqn{\phi} matrix is computed for all internal nodes from
-\code{x$Plot.cluster}, restricted to the parent groups at \code{phi}, optionally filtered by
-\code{phi_mode}, and plot scores are obtained by multiplying transformed covers by these \eqn{\phi}
-weights. The \code{compare} rule then determines whether a unique winner exists for each plot.
+\strong{Parent clusters} are the “topmost” nodes with height at least \code{phi_cut}
+(no ancestor also at or above the cut). If \code{clusters} is supplied, it must
+identify valid Cocktail node IDs/labels; mixed types are allowed (e.g., \code{c("c_12", 25)}).
 
-The \code{min_cover} check is applied in both modes (using raw, untransformed covers); ineligible
-plot–group pairs are discarded prior to comparison. Finally, \code{min_group_size} can collapse
-very small winning groups to \code{"not assigned"}.
+For cover-based scoring, species columns of \code{vegmatrix} are aligned to
+\code{colnames(x$Cluster.species)}. Non-overlapping species are ignored. If your covers are
+on \strong{ordinal} scales (e.g., 1–5, Braun–Blanquet codes), results are computed but a
+message is emitted recommending percentage covers for best performance.
+
+\strong{Runtime note:} partitioning on \strong{large vegetation tables} (many plots and/or many
+clusters kept at the cut) can take a long time due to distance and clustering steps.
 }
 \seealso{
-\code{\link{cocktail_fuzzy}}
+\code{\link{clusters_at_cut}}
 }
