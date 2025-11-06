@@ -4,12 +4,29 @@
 \alias{cocktail_cluster}
 \title{Cocktail clustering (sparse matrix)}
 \usage{
-cocktail_cluster(vegmatrix, progress = TRUE)
+cocktail_cluster(
+  vegmatrix,
+  progress = TRUE,
+  plot_values = c("binary", "sum_cover")
+)
 }
 \arguments{
-\item{vegmatrix}{A matrix or data frame with \strong{plots in rows} and \strong{species in columns}.}
+\item{vegmatrix}{A matrix or data frame with \strong{plots in rows} and \strong{species in columns}.
+This is used twice:
+(1) it is \strong{binarized} internally to drive the clustering, and
+(2) its \strong{original numeric values} (with \code{NA} treated as 0) are used to compute
+cover sums when \code{plot_values = "sum_cover"}.}
 
 \item{progress}{Logical; show a text progress bar (default \code{TRUE}).}
+
+\item{plot_values}{Character; one of \code{c("binary", "sum_cover")}.
+\itemize{
+\item \code{"binary"} (default): \code{Plot.cluster} stores 0/1 plot membership per merge,
+identical to the original behavior.
+\item \code{"sum_cover"}: \code{Plot.cluster} stores the \strong{sum of covers} (row sums over
+the cluster’s species) per plot and merge, but \strong{only} for plots that meet
+the current merge’s m-threshold (membership); non-member plots are set to 0.
+}}
 }
 \value{
 A list of class \code{"cocktail"} with:
@@ -18,7 +35,9 @@ A list of class \code{"cocktail"} with:
 \item \code{Cluster.merged}  — integer matrix (n_merges × 2): left/right children per merge
 (negative = original species index; positive = earlier merge index).
 \item \code{Cluster.height}  — numeric vector length n_merges: phi at each merge.
-\item \code{Plot.cluster}    — integer matrix (n_plots × n_merges): plot membership per merge.
+\item \code{Plot.cluster}    — matrix (n_plots × n_merges): plot values per merge.
+It is \strong{integer 0/1} when \code{plot_values = "binary"} and \strong{numeric}
+cover sums when \code{plot_values = "sum_cover"}.
 \item \code{species}         — character vector of species names kept after cleaning.
 \item \code{plots}           — character vector of plot names.
 }
@@ -26,31 +45,50 @@ A list of class \code{"cocktail"} with:
 \description{
 This implementation:
 \itemize{
-\item \strong{Binarizes} the input: values > 0 become 1; values ≤ 0 or \code{NA} become 0.
-\item \strong{Drops empty species} (all-zero columns) before clustering.
+\item \strong{Binarizes} the input for clustering: values > 0 become 1; values ≤ 0 or \code{NA} become 0.
+\item \strong{Drops empty species} (all-zero columns) before clustering (and keeps \code{vegmatrix} aligned).
 \item Computes the association coefficient (“phi”) each round from one sparse
 crossproduct for speed and exactness.
 \item Uses a \strong{fixed, reproducible tie order}: when several pairs share the same
 maximum phi at a step, they are processed in the same order that R fills the
 lower-triangular distance matrix (scan by increasing column, then row).
+\item Optionally writes \strong{cover sums} into \code{Plot.cluster} instead of binary membership
+via \code{plot_values = "sum_cover"}; sums are zeroed for plots not meeting the
+m-threshold (cluster membership).
 }
 }
 \details{
 Fast Cocktail agglomeration for a \strong{plots × species} table.
-
-Binarization and removal of empty species happen internally and only affect the
+\itemize{
+\item Binarization and removal of empty species happen internally and only affect the
 set of columns that contribute to clustering. All returned components are aligned
 to the species that had at least one presence after cleaning.
+\item For \code{plot_values = "sum_cover"}, cover sums are computed from the \strong{original}
+\code{vegmatrix} values (after converting \code{NA} to 0), restricted to the species that
+belong to the current cluster at each merge, and \strong{zeroed} for plots that do not
+meet the m-threshold (i.e., are not assigned to that merge).
+\item Basic checks on the cover scale:
+if input values appear \strong{binary} (only 0/1) or contain \strong{non-numeric codes}
+(e.g., \verb{+, r, 2a}), the function warns and \strong{falls back to \code{"binary"}} output.
+If values look \strong{ordinal} (e.g., 1..6 / 1..10), the function warns but proceeds
+to compute sums.
+}
 }
 \examples{
+# Toy example
 vm <- matrix(c(1,0,1,
                0,1,0,
                1,1,0),
              nrow = 3, byrow = TRUE,
              dimnames = list(paste0("plot", 1:3),
                              c("sp1","sp2","sp3")))
-res <- cocktail_cluster(vm, progress = FALSE)
-names(res)
+
+# Binary membership (as before)
+res_bin <- cocktail_cluster(vm, progress = FALSE, plot_values = "binary")
+names(res_bin)
+
+# Sum of covers (here numerically same as binary, but works with \% covers)
+res_sum <- cocktail_cluster(vm, progress = FALSE, plot_values = "sum_cover")
 
 }
 \seealso{

@@ -1,32 +1,23 @@
-#' Cocktail clustering (sparse matrix)
+#' Cocktail clustering (sparse matrix) — modified
 #'
 #' Fast Cocktail agglomeration for a **plots × species** table.
 #'
 #' @description
 #' This implementation:
-#' - **Binarizes** the input for clustering: values > 0 become 1; values ≤ 0 or `NA` become 0.
-#' - **Drops empty species** (all-zero columns) before clustering (and keeps `vegmatrix` aligned).
+#' - **Binarizes** the input: values > 0 become 1; values ≤ 0 or `NA` become 0.
+#' - **Drops empty species** (all-zero columns) before clustering.
 #' - Computes the association coefficient (“phi”) each round from one sparse
 #'   crossproduct for speed and exactness.
 #' - Uses a **fixed, reproducible tie order**: when several pairs share the same
 #'   maximum phi at a step, they are processed in the same order that R fills the
 #'   lower-triangular distance matrix (scan by increasing column, then row).
-#' - Optionally writes **cover sums** into `Plot.cluster` instead of binary membership
-#'   via `plot_values = "sum_cover"`; sums are zeroed for plots not meeting the
-#'   m-threshold (cluster membership).
 #'
 #' @param vegmatrix A matrix or data frame with **plots in rows** and **species in columns**.
-#'   This is used twice:
-#'   (1) it is **binarized** internally to drive the clustering, and
-#'   (2) its **original numeric values** (with `NA` treated as 0) are used to compute
-#'       cover sums when `plot_values = "sum_cover"`.
 #' @param progress  Logical; show a text progress bar (default `TRUE`).
-#' @param plot_values Character; one of `c("binary", "sum_cover")`.
-#'   - `"binary"` (default): `Plot.cluster` stores 0/1 plot membership per merge,
-#'     identical to the original behavior.
-#'   - `"sum_cover"`: `Plot.cluster` stores the **sum of covers** (row sums over
-#'     the cluster’s species) per plot and merge, but **only** for plots that meet
-#'     the current merge’s m-threshold (membership); non-member plots are set to 0.
+#' @param compute_negative_phi Logical; if `TRUE`, allow merging on non-positive
+#'   φ values using the fallback over all pairs (original Cocktail behavior).
+#'   If `FALSE` (default), stop associative merging once no strictly positive φ
+#'   remains and finish the hierarchy with a 0-height tail (no negative heights).
 #'
 #' @return
 #' A list of class `"cocktail"` with:
@@ -35,109 +26,52 @@
 #'   \item `Cluster.merged`  — integer matrix (n_merges × 2): left/right children per merge
 #'         (negative = original species index; positive = earlier merge index).
 #'   \item `Cluster.height`  — numeric vector length n_merges: phi at each merge.
-#'   \item `Plot.cluster`    — matrix (n_plots × n_merges): plot values per merge.
-#'         It is **integer 0/1** when `plot_values = "binary"` and **numeric**
-#'         cover sums when `plot_values = "sum_cover"`.
+#'   \item `Plot.cluster`    — integer matrix (n_plots × n_merges): plot membership per merge.
 #'   \item `species`         — character vector of species names kept after cleaning.
 #'   \item `plots`           — character vector of plot names.
 #' }
 #'
 #' @details
-#' - Binarization and removal of empty species happen internally and only affect the
-#'   set of columns that contribute to clustering. All returned components are aligned
-#'   to the species that had at least one presence after cleaning.
-#' - For `plot_values = "sum_cover"`, cover sums are computed from the **original**
-#'   `vegmatrix` values (after converting `NA` to 0), restricted to the species that
-#'   belong to the current cluster at each merge, and **zeroed** for plots that do not
-#'   meet the m-threshold (i.e., are not assigned to that merge).
-#' - Basic checks on the cover scale:
-#'   if input values appear **binary** (only 0/1) or contain **non-numeric codes**
-#'   (e.g., `+, r, 2a`), the function warns and **falls back to `"binary"`** output.
-#'   If values look **ordinal** (e.g., 1..6 / 1..10), the function warns but proceeds
-#'   to compute sums.
+#' Binarization and removal of empty species happen internally and only affect the
+#' set of columns that contribute to clustering. All returned components are aligned
+#' to the species that had at least one presence after cleaning.
 #'
 #' @seealso \code{\link{plot_cocktail}}, \code{\link{cocktail_fuzzy}}, \code{\link{assign_releves}}
 #'
 #' @examples
-#' # Toy example
 #' vm <- matrix(c(1,0,1,
 #'                0,1,0,
 #'                1,1,0),
 #'              nrow = 3, byrow = TRUE,
 #'              dimnames = list(paste0("plot", 1:3),
 #'                              c("sp1","sp2","sp3")))
-#'
-#' # Binary membership (as before)
-#' res_bin <- cocktail_cluster(vm, progress = FALSE, plot_values = "binary")
-#' names(res_bin)
-#'
-#' # Sum of covers (here numerically same as binary, but works with % covers)
-#' res_sum <- cocktail_cluster(vm, progress = FALSE, plot_values = "sum_cover")
+#' res <- cocktail_cluster_mod(vm, progress = FALSE)
+#' names(res)
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' @export
-cocktail_cluster <- function(
+cocktail_cluster_mod <- function(
     vegmatrix,
     progress = TRUE,
-    plot_values = c("binary", "sum_cover")
+    compute_negative_phi = FALSE
 ) {
-  plot_values <- match.arg(plot_values)
-
   ## ---- input checks & setup ----
   if (!is.matrix(vegmatrix) && !is.data.frame(vegmatrix)) {
     stop("vegmatrix must be a matrix or data.frame with plots in rows and species in columns.")
   }
-
-  # Keep original covers for optional sum output
-  vm_raw <- as.matrix(vegmatrix)
-  vm_raw[is.na(vm_raw)] <- 0
-
-  # Detect cover scale for warnings/forcing behavior
-  detect_cover_scale <- function(M) {
-    vals <- unique(as.vector(M)); vals <- vals[!is.na(vals)]
-    if (!length(vals)) return(list(type="unknown", note=NULL))
-    num_try <- suppressWarnings(as.numeric(vals))
-    non_num <- is.na(num_try)
-    if (any(non_num)) return(list(type="non_numeric", note="Non-numeric cover codes detected (e.g., '+', 'r', '2a')."))
-    u <- sort(unique(num_try))
-    if (all(u %in% c(0,1))) return(list(type="binary", note="Cover data appear to be binary (0/1)."))
-    all_int <- all(abs(u - round(u)) < .Machine$double.eps^0.5)
-    if (all_int && length(u) <= 10) return(list(type="ordinal", note="Cover data appear ordinal (small integer scale)."))
-    list(type="numeric", note=NULL)
-  }
-  scale_info <- detect_cover_scale(vm_raw)
-
-  # If user asked for cover-based output but data unsuitable, warn and force binary
-  if (plot_values != "binary") {
-    if (scale_info$type %in% c("binary","non_numeric")) {
-      warning(sprintf(
-        "%s Using binary Plot.cluster instead.",
-        if (scale_info$type == "binary") {
-          "Cover data are binary (0/1); cumulative covers are not meaningful."
-        } else {
-          "Non-numeric cover codes detected; cumulative covers not computed."
-        }
-      ))
-      plot_values <- "binary"
-    } else if (scale_info$type == "ordinal") {
-      warning("Cover data look ordinal (e.g., 1..6 / 1..10). Proceeding with sums, but percentage cover is recommended.")
-    }
-  }
-
-  # Binarize for clustering
   vm <- as.matrix(vegmatrix)
+
   vm[is.na(vm)] <- 0
   vm <- (vm > 0) * 1L
 
   plots   <- rownames(vm); if (is.null(plots))   plots   <- as.character(seq_len(nrow(vm)))
   species <- colnames(vm); if (is.null(species)) species <- as.character(seq_len(ncol(vm)))
 
-  # Drop empty species columns (and align vm_raw)
+  # Drop empty species columns
   keep <- colSums(vm) > 0L
   if (!all(keep)) {
     vm      <- vm[, keep, drop = FALSE]
-    vm_raw  <- vm_raw[, keep, drop = FALSE]
     species <- species[keep]
   }
 
@@ -154,6 +88,7 @@ cocktail_cluster <- function(
   q.freq <- 1 - p.freq
 
   ## ---- helpers -------------------------------------------------------------
+
   Expected.plot.freq_ <- function(species.in.cluster) {
     K <- length(species.in.cluster)
     Exp <- array(0, K + 1L)
@@ -193,6 +128,7 @@ cocktail_cluster <- function(
     m
   }
 
+  # idx(i,j; m) = (i-1)*m - ((i-1)*i)/2 + (j - i),  for 1<=i<j<=m
   .lower_tri_index_vec <- function(i, j, m) {
     x <- i - 1L
     (x * m) - (x * (x + 1L)) / 2 + (j - i)
@@ -285,12 +221,68 @@ cocktail_cluster <- function(
     list(max_phi = ifelse(is.finite(best), best, 0), pairs = pairs)
   }
 
+  # helper: finish remaining merges at height 0 (φ=0 tail), returns updated i, X, col_names
+  .finish_with_zero_tail <- function(i, n, N, X, col_names) {
+    if (i >= (n - 1L)) return(list(i = i, X = X, col_names = col_names))
+    remaining <- (n - 1L) - i
+    if (remaining <= 0L) return(list(i = i, X = X, col_names = col_names))
+
+    # map an endpoint name to child encoding and membership row
+    .encode_child <- function(name) {
+      if (startsWith(name, "c_")) {
+        cl <- as.integer(sub("c_", "", name))
+        list(enc = cl, memb = Cluster.species[cl, , drop = FALSE])
+      } else {
+        f <- match(name, species)
+        memb <- integer(n); memb[f] <- 1L
+        list(enc = -f, memb = matrix(memb, nrow = 1L))
+      }
+    }
+
+    for (j in (i + seq_len(remaining))) {
+      stopifnot(j >= 1L, j <= nrow(Cluster.merged))
+
+      # choose rightmost and leftmost endpoints in current X
+      g1_name <- col_names[ncol(X)]   # rightmost
+      g2_name <- col_names[1L]        # leftmost
+
+      ch1 <- .encode_child(g1_name)
+      ch2 <- .encode_child(g2_name)
+
+      # record children (may be species (-f) or clusters (+cl))
+      Cluster.merged[j, 1L] <- ch1$enc
+      Cluster.merged[j, 2L] <- ch2$enc
+
+      # height & membership
+      Cluster.height[j] <- 0
+      memb_row <- (ch1$memb[1, ] | ch2$memb[1, ]) * 1L
+      Cluster.species[j, ] <- (Cluster.species[j, ] | memb_row) * 1L
+
+      # k/m bookkeeping and plot assignment (tail convention)
+      Cluster.info[j, 1L] <- sum(Cluster.species[j, ])
+      Cluster.info[j, 2L] <- 1L
+      Plot.cluster[, j] <- 1L
+
+      # evolve X: add new cluster col, drop the two endpoints
+      X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0L, sparse = TRUE))
+      colnames(X)[ncol(X)] <- paste0("c_", j)
+
+      pos_last  <- which(col_names == g1_name)[1L]
+      pos_first <- which(col_names == g2_name)[1L]
+      drop_pos  <- sort(c(pos_last, pos_first))
+      X <- X[, -drop_pos, drop = FALSE]
+
+      col_names <- c(col_names, paste0("c_", j))
+      col_names <- col_names[-drop_pos]
+    }
+    list(i = i + remaining, X = X, col_names = col_names)
+  }
+
   ## ---- outputs ----
   Cluster.species <- matrix(0L, n - 1L, n, dimnames = list(NULL, species))
   Cluster.info    <- matrix(0L, n - 1L, 2L,
                             dimnames = list(as.character(seq_len(n - 1L)), c("k","m")))
-  # numeric so it can hold sums when requested
-  Plot.cluster    <- matrix(0, N, n - 1L, dimnames = list(plots, NULL))
+  Plot.cluster    <- matrix(0L, N, n - 1L, dimnames = list(plots, NULL))
   Cluster.merged  <- matrix(0L, n - 1L, 2L)
   Cluster.height  <- array(0, n - 1L)
 
@@ -306,11 +298,22 @@ cocktail_cluster <- function(
   ## ---- agglomeration loop ----
   while (i <= (n - 2L)) {
 
-    # fast φ; if needed, fallback (ensures a==0 pairs included when max ≤ 0)
+    # fast φ; if needed, decide whether to allow negatives
     maxres <- phi_max_pairs_crossprod_distorder_(X)
-    if (nrow(maxres$pairs) == 0L || !(is.finite(maxres$max_phi) && maxres$max_phi > 0)) {
-      maxres <- phi_max_pairs_fallback_distorder_(X)
-      if (nrow(maxres$pairs) == 0L) break
+
+    if (!nrow(maxres$pairs) || !(is.finite(maxres$max_phi) && maxres$max_phi > 0)) {
+
+      if (isTRUE(compute_negative_phi)) {
+        # original behavior: include a==0, may yield non-positive maxima
+        maxres <- phi_max_pairs_fallback_distorder_(X)
+        if (!nrow(maxres$pairs)) break
+      } else {
+        # new default: stop associative merging and finish with zero-height tail
+        tail <- .finish_with_zero_tail(i, n, N, X, col_names)
+        i <- tail$i; X <- tail$X; col_names <- tail$col_names
+        if (!is.null(pb)) utils::setTxtProgressBar(pb, min(i, n - 1L))
+        break
+      }
     }
 
     e1 <- maxres$pairs[, 1L]
@@ -350,7 +353,8 @@ cocktail_cluster <- function(
     for (jj in seq_len(multiple.max)) {
       if (i >= (n - 1L)) break
       i <- i + 1L
-      Cluster.height[i] <- maxres$max_phi
+      # clamp at 0 when negatives are disabled (belt-and-braces)
+      Cluster.height[i] <- if (isTRUE(compute_negative_phi)) maxres$max_phi else max(0, maxres$max_phi)
 
       pos_left  <- match(e1[jj], end_idx)
       pos_right <- match(e2[jj], end_idx)
@@ -395,16 +399,7 @@ cocktail_cluster <- function(
       Exp_plot_freq <- Expected.plot.freq_(spp_idx) * N
       Cluster.info[i, 2L] <- Compare.obs.exp.freq_(Obs_plot_freq, Exp_plot_freq)
 
-      # Fill Plot.cluster per option
-      if (plot_values == "binary") {
-        Plot.cluster[species_in_plot >= Cluster.info[i, 2L], i] <- 1
-      } else {
-        # cover-based: sum covers of the cluster species, zeroed outside membership
-        cov_block <- vm_raw[, spp_idx, drop = FALSE]
-        sums <- rowSums(cov_block, na.rm = TRUE)
-        sums[species_in_plot < Cluster.info[i, 2L]] <- 0
-        Plot.cluster[, i] <- sums
-      }
+      Plot.cluster[species_in_plot >= Cluster.info[i, 2L], i] <- 1L
     }
 
     col_names[end_idx] <- end_names
@@ -421,7 +416,7 @@ cocktail_cluster <- function(
     drop_cols <- sort(unique(c(e1, e2)))
     if (length(index.e)) {
       newcols <- do.call(cbind, lapply(index.e, function(kid) {
-        Matrix::Matrix(Plot.cluster[, kid] > 0, sparse = TRUE)
+        Matrix::Matrix(Plot.cluster[, kid] > 0L, sparse = TRUE)
       }))
       colnames(newcols) <- paste0("c_", index.e)
       X <- cbind(X[, -drop_cols, drop = FALSE], newcols)
@@ -436,54 +431,34 @@ cocktail_cluster <- function(
     }
 
     # φ = 0 tail: once every plot is in the current cluster, finish remaining merges at height 0
-    if (sum(Plot.cluster[, i] > 0) == N) {
-      remaining <- (n - 1L) - i
-      if (remaining > 0L) {
-        for (j in (i + seq_len(remaining))) {
-          # sanity: j within 1..n-1
-          stopifnot(j >= 1L, j <= nrow(Cluster.merged))
-
-          g1  <- ncol(X)
-          cl1 <- as.integer(sub("c_", "", col_names[g1]))
-          Cluster.merged[j, 1L] <- cl1
-
-          g2  <- 1L
-          cl2 <- as.integer(sub("c_", "", col_names[g2]))
-          Cluster.merged[j, 2L] <- cl2
-
-          Cluster.height[j] <- 0
-          Cluster.info[j, 1L] <- sum(Cluster.species[j, ])
-          Cluster.info[j, 2L] <- 1L
-
-          Cluster.species[j, Cluster.species[cl1, ] == 1L] <- 1L
-          Cluster.species[j, Cluster.species[cl2, ] == 1L] <- 1L
-
-          # Tail: write Plot.cluster
-          if (plot_values == "binary") {
-            Plot.cluster[, j] <- 1
-          } else {
-            spp_idx <- which(Cluster.species[j, ] > 0L)
-            cov_block <- vm_raw[, spp_idx, drop = FALSE]
-            sums <- if (length(spp_idx)) rowSums(cov_block, na.rm = TRUE) else rep(0, N)
-            # tail uses m = 1 convention
-            species_in_plot_tail <- as.integer(Matrix::rowSums(X0[, spp_idx, drop = FALSE]))
-            sums[species_in_plot_tail < 1L] <- 0
-            Plot.cluster[, j] <- sums
-          }
-
-          X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0, sparse = TRUE))
-          colnames(X)[ncol(X)] <- paste0("c_", j)
-          X <- X[, -c(g1, g2), drop = FALSE]
-          col_names <- c(col_names, paste0("c_", j))
-          col_names <- col_names[-c(g1, g2)]
-        }
-        # advance i by exactly how many merges we just filled
-        i <- i + remaining
-      }
+    if (sum(Plot.cluster[, i]) == N) {
+      tail <- .finish_with_zero_tail(i, n, N, X, col_names)
+      i <- tail$i; X <- tail$X; col_names <- tail$col_names
     }
 
     if (!is.null(pb)) utils::setTxtProgressBar(pb, min(i, n - 1L))
     if (i >= (n - 1L)) break
+  }
+
+  ## ---- final repair: replace any 0 children by real species of that row ----
+  zero_rows <- which(Cluster.merged[,1L] == 0L | Cluster.merged[,2L] == 0L)
+  if (length(zero_rows)) {
+    for (r in zero_rows) {
+      # pick two species actually present in this row; fall back to first two species
+      spp <- which(Cluster.species[r, ] == 1L)
+      if (length(spp) >= 2L) {
+        s1 <- spp[1L]; s2 <- spp[2L]
+      } else if (length(spp) == 1L) {
+        s1 <- spp[1L]; s2 <- s1
+      } else {
+        s1 <- 1L; s2 <- min(2L, n)  # worst-case fallback (should not happen)
+      }
+      if (Cluster.merged[r, 1L] == 0L) Cluster.merged[r, 1L] <- -s1
+      if (Cluster.merged[r, 2L] == 0L) Cluster.merged[r, 2L] <- -s2
+      if (r > 0 && r <= length(Cluster.height) && !is.finite(Cluster.height[r])) {
+        Cluster.height[r] <- 0
+      }
+    }
   }
 
   res <- list(
