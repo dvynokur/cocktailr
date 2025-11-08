@@ -2,121 +2,116 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign relevés (plots) to Cocktail groups or partition them}
+\title{Assign relevés (plots) to Cocktail groups (topology, covers, fuzzy)}
 \usage{
 assign_releves(
   x,
   vegmatrix = NULL,
-  strategy = c("topology_only", "topology_cover", "cover_strict", "cover_fuzzy",
-    "partition_kmeans", "partition_hclust"),
+  strategy = c("topology", "topology_cover", "topology_fuzzy", "fuzzy"),
   phi_cut = 0.3,
   clusters = NULL,
   cover_transform = c("sqrt", "none", "log1p"),
   min_cover = 0,
-  k_partition = NULL,
-  kmeans_seed = NULL,
-  dist_method = "manhattan",
-  clust_method = "average",
-  use_parallelDist = FALSE,
-  use_fastcluster = FALSE,
-  feature_scale = TRUE,
+  phi_fuzzy = NULL,
   min_group_size = 1
 )
 }
 \arguments{
-\item{x}{A Cocktail result (list) with at least \code{Cluster.species}, \code{Cluster.merged},
-\code{Cluster.height}, and \code{Plot.cluster} (from \code{cocktail_cluster()}).}
+\item{x}{A Cocktail object (list) with components
+\code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height}, and \code{Plot.cluster}
+(e.g., from \code{cocktail_cluster()}).}
 
-\item{vegmatrix}{Optional numeric matrix/data.frame of \strong{covers} with plots in rows
-and species in columns (needed for \emph{_cover} strategies). Missing values are treated as 0.}
+\item{vegmatrix}{Optional numeric matrix/data.frame of \strong{covers} with plots
+in rows and species in columns. Needed for \code{"topology_cover"},
+\code{"topology_fuzzy"}, and \code{"fuzzy"}. Missing values are treated as 0.}
 
-\item{strategy}{One of
-\code{c("topology_only","topology_cover","cover_strict","cover_fuzzy", "partition_kmeans","partition_hclust")}.}
+\item{strategy}{One of \code{c("topology","topology_cover","topology_fuzzy","fuzzy")}.}
 
-\item{phi_cut}{Numeric between 0 and 1 (inclusive). Cut level used to choose
-\strong{parent clusters} (unless \code{clusters} is supplied).}
+\item{phi_cut}{Numeric in (0,1). Height cut used to choose \strong{parent clusters}
+(unless \code{clusters} is supplied).}
 
-\item{clusters}{Optional vector of cluster IDs to use instead of \code{phi_cut}.
-Accepts character labels like \code{"c_1333"} or integer IDs like \code{1333}.}
+\item{clusters}{Optional selection of clusters \strong{instead of} \code{phi_cut}.
+\itemize{
+\item If a \strong{vector} of labels/IDs (e.g., \code{c("c_123","c_456")} or \code{c(123,456)}),
+each element forms a separate group.
+\item If a \strong{list}, each element is a \strong{union} (group) of several nodes,
+e.g., \code{list(c("c_123","c_234"), 567)}.
+Within each group, if both an \strong{ancestor} and its \strong{descendant} are
+present, the function \strong{keeps only the topmost} (ancestor) to avoid
+double-counting.
+}}
 
-\item{cover_transform}{Cover transform used by cover-based strategies:
-\code{c("sqrt","none","log1p")}. Default \code{"sqrt"}.}
+\item{cover_transform}{Cover transform: \code{c("sqrt","none","log1p")}. Default \code{"sqrt"}.}
 
-\item{min_cover}{Numeric percent between 0 and 100 (inclusive). A plot is eligible
-for a group only if the \strong{raw (pre-transform)} sum of that group’s species covers
-in the plot is at least this value. Default 0.}
+\item{min_cover}{Numeric percent in (0,100). A plot–group pair is \strong{ineligible}
+unless the \strong{raw (pre-transform)} sum of the group’s species in the plot is
+at least this value. Default 0.}
 
-\item{k_partition}{Positive integer, required for partitioning strategies.}
+\item{phi_fuzzy}{Fidelity threshold for \code{"fuzzy"} (defaults to \code{phi_cut}).
+Species with \eqn{\phi <} \code{phi_fuzzy} are dropped for that group.}
 
-\item{kmeans_seed}{Optional scalar to set the RNG seed for k-means reproducibility.}
-
-\item{dist_method}{Distance for \code{"partition_hclust"} (default \code{"manhattan"}).}
-
-\item{clust_method}{Linkage for \code{"partition_hclust"} (default \code{"average"}).}
-
-\item{use_parallelDist}{Logical. If \code{TRUE}, try \code{parallelDist::parDist()} for distance.
-Falls back to \code{stats::dist()} if the package is unavailable.}
-
-\item{use_fastcluster}{Logical. If \code{TRUE}, try \code{fastcluster::hclust()} for agglomeration.
-Falls back to \code{stats::hclust()} if the package is unavailable.}
-
-\item{feature_scale}{Logical; if \code{TRUE} (default), standardize features
-(columns) for partitioning strategies to equalize scale.}
-
-\item{min_group_size}{Integer at least 1. After assignment/partitioning, any group with fewer
-than this many plots is relabeled \code{"not assigned"}. Default 1 (no collapsing).}
+\item{min_group_size}{Integer ≥ 1. After assignment, any group with fewer than
+this many plots is relabeled \code{"not assigned"}. Default 1 (no collapsing).}
 }
 \value{
-A named character vector of group labels per plot (or \code{"not assigned"}). The return
-value has an attribute \code{"details"} with:
 \itemize{
-\item \code{strategy}, \code{phi_cut}, \code{clusters_used}, \code{feature_scale}
-\item \code{scores} (for scoring strategies) or \code{partition} (data.frame with cluster IDs)
-\item \code{parents} (parent node IDs used)
-\item \code{min_cover}, \code{cover_transform}
-\item \code{min_group_size}, \code{collapsed_groups}
+\item For \code{"topology"}: character vector of assignments \strong{or} a binary membership
+matrix (plots × groups) if multiple memberships occur.
+\item For the other strategies: a character vector of assigned group labels
+(or \code{"not assigned"}).
+The object carries an attribute \code{"details"} with inputs and diagnostics
+(e.g., scores matrix, groups used, species sets, etc.).
 }
 }
 \description{
-Assign plots using the Cocktail tree (\code{x}) in several ways:
+Assign plots to groups derived from a Cocktail tree in four ways:
 \itemize{
-\item \strong{"topology_only"} \emph{(default)} — Use topology from \code{x$Plot.cluster}
-at a given \code{phi_cut} (or a user-specified set of parent clusters).
-Each plot is assigned to the \strong{unique} group (if any) where it is a member
-at that cut; ties or no-membership → \code{"not assigned"}.
-\item \strong{"topology_cover"} — Like \emph{topology_only}, but when \code{vegmatrix} contains cover
-values, score parent groups by \strong{sum of covers} of their member species in each plot,
-restricted to plots that meet the group’s m-rule in \code{x$Plot.cluster}.
-Scores are \strong{per-plot normalised} (divide by the row sum across candidate groups)
-before taking a unique maximum. Plots failing \code{min_cover} for a group are ineligible.
-\item \strong{"cover_strict"} — Ignore topology membership and score each plot–group pair as the
-\strong{sum of transformed covers} across the group’s species. Unique maximum wins; otherwise
-\code{"not assigned"}. Uses only parent groups at \code{phi_cut} (or \code{clusters} if given).
-\item \strong{"cover_fuzzy"} — Compute a species × node \eqn{\phi} matrix from \code{x$Plot.cluster},
-restrict to parent groups at \code{phi_cut} (or \code{clusters}), set non-positive \eqn{\phi} to 0,
-then score plots by (transformed cover) × \eqn{\phi} weights. Unique maximum wins.
-\item \strong{"partition_kmeans"} — Build a feature matrix from \code{x$Plot.cluster} filtered to
-parent groups at \code{phi_cut} (or \code{clusters}), \strong{deduplicate identical columns}, optionally
-\strong{standardize features} (\code{feature_scale = TRUE}), then do k-means into \code{k_partition} groups.
-For large vegetation tables, this can be slow.
-\item \strong{"partition_hclust"} — Same features as above; compute distances (default
-Manhattan), then hierarchical clustering (\code{clust_method}, default UPGMA/"average")
-and cut into \code{k_partition} groups. \strong{Clusters are relabeled} in left-to-right
-dendrogram order for readability. For large vegetation tables, this can be slow.
+\item \strong{"topology"} — Use \emph{topological} membership from \code{x$Plot.cluster} at a
+given \code{phi_cut} (or user-specified \code{clusters}). A plot can be a member of
+\strong{0, 1, or several} groups. If \strong{every} plot belongs to \strong{exactly one}
+group, the function returns a \strong{character vector} of assignments. If \strong{any}
+plot has \strong{multiple} memberships, the function returns a \strong{binary matrix}
+(plots × groups) with 0/1 membership flags.
+\item \strong{"topology_cover"} — Like \emph{topology}, but when \code{vegmatrix} contains
+cover values, score each plot–group pair by the \strong{sum of transformed covers}
+across the group’s \emph{topological} species (i.e., species that define that
+parent node). Plots are \strong{eligible} only if they are topological members of
+the group (\code{x$Plot.cluster}) \strong{and} their \strong{raw (pre-transform)} cover sum
+for the group's species is at least \code{min_cover}. The \strong{unique maximum} score
+(if any) wins; otherwise \code{"not assigned"}.
+\item \strong{"topology_fuzzy"} — Compute \strong{direct} (Option A) \eqn{\phi} between each
+species and \strong{each selected group} (the group’s plot-membership is the
+OR-union of its parent nodes’ memberships). Then \strong{mask} these \eqn{\phi}
+weights so that only the group’s \emph{topological species} (from the Cocktail
+node) can contribute. Plot scores are (transformed covers) × (masked \eqn{\phi}).
+Eligibility by \code{min_cover} uses the group’s \emph{topological} species. Unique
+maximum rule as above.
+\item \strong{"fuzzy"} — Compute \strong{direct} (Option A) \eqn{\phi} for species against
+\strong{each selected group}, then \strong{filter species by fidelity}: keep species
+with \eqn{\phi \ge} \code{phi_fuzzy} for that group (\code{phi_fuzzy} defaults to
+\code{phi_cut}). Plot scores are (transformed covers) × (filtered \eqn{\phi}).
+Eligibility by \code{min_cover} uses the \strong{filtered species set} per group.
+Unique maximum rule as above.
 }
 }
 \details{
-\strong{Parent clusters} are the “topmost” nodes with height at least \code{phi_cut}
-(no ancestor also at or above the cut). If \code{clusters} is supplied, it must
-identify valid Cocktail node IDs/labels; mixed types are allowed (e.g., \code{c("c_12", 25)}).
+\strong{Parent clusters} at a cut are the “topmost” nodes with height ≥ \code{phi_cut}
+that \strong{do not} have an ancestor also at/above the cut. If \code{clusters} is not
+provided, each parent cluster at the cut forms \strong{one group}. If \code{clusters}
+is a \strong{list}, each element defines a \strong{union} (OR) of several nodes; plot
+membership for that group is the OR across those nodes’ memberships in
+\code{x$Plot.cluster}, and \strong{species sets for topology} are the \strong{unions} of the
+nodes’ topological species (\code{x$Cluster.species} at those node IDs).
 
-For cover-based scoring, species columns of \code{vegmatrix} are aligned to
-\code{colnames(x$Cluster.species)}. Non-overlapping species are ignored. If your covers are
-on \strong{ordinal} scales (e.g., 1–5, Braun–Blanquet codes), results are computed but a
-message is emitted recommending percentage covers for best performance.
+\strong{Fuzzy (Option A, direct):} for species–group association we \emph{recompute}
+\eqn{\phi} directly against the \strong{group} membership vector (the OR-union
+of its components), i.e., using the 2×2 counts \eqn{a,b,c,d} per species vs.
+the group’s plot membership. This yields diagnostics for the \strong{union as a
+single unit} (statistically exact for the redefined group).
 
-\strong{Runtime note:} partitioning on \strong{large vegetation tables} (many plots and/or many
-clusters kept at the cut) can take a long time due to distance and clustering steps.
+\strong{Topology output shape:} In \code{"topology"}, a plot can belong to multiple
+groups. If \strong{all} plots have exactly one membership, a \strong{vector} of labels
+is returned; otherwise a \strong{binary matrix} (plots × groups) is returned.
 }
 \seealso{
 \code{\link{clusters_at_cut}}
