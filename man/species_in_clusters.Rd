@@ -2,51 +2,119 @@
 % Please edit documentation in R/species_in_clusters.R
 \name{species_in_clusters}
 \alias{species_in_clusters}
-\title{Species in Cocktail clusters or fuzzy groups}
+\title{Species in Cocktail clusters (topology and optional φ)}
 \usage{
 species_in_clusters(
   x,
-  labels = NULL,
-  min_phi = 0.2,
+  labels,
+  species_cluster_phi = FALSE,
+  min_phi = NULL,
   top_k = NULL,
   sort_desc = TRUE
 )
 }
 \arguments{
-\item{x}{Either:
+\item{x}{A Cocktail object (a list containing at least
+\code{Cluster.species}; usually from \code{cocktail_cluster()}).}
+
+\item{labels}{Selection of clusters. Can be:
 \itemize{
-\item a Cocktail object (a list containing \code{Cluster.species}); or
-\item a numeric matrix returned by \code{cocktail_fuzzy()} with species in
-rownames and node labels like \code{"c_2127"} in colnames.
+\item Character labels like \code{"c_2127"} or integer node IDs
+(e.g. \code{2127}), where each element defines one group; or
+\item A \strong{list} of such vectors, e.g.
+\code{list(10, c(11,13), c(12,15), 14)}, where each element
+defines a union group of nodes.
+}
+Must be supplied.}
+
+\item{species_cluster_phi}{Logical; if \code{FALSE} (default), return only
+topological species per group. If \code{TRUE}, use
+\code{x$Species.cluster.phi} to attach \eqn{\phi} values as described.}
+
+\item{min_phi}{Numeric or \code{NULL}. Used only when
+\code{species_cluster_phi = TRUE}:
+\itemize{
+\item \code{NULL} (default): list only topological species, with their
+group-level \eqn{\phi};
+\item numeric: list all species with \eqn{\phi(s,g) \ge \code{min_phi}}.
 }}
 
-\item{labels}{Character cluster labels such as \code{"c_2127"} or integer node IDs.
-If \code{x} is a \eqn{\phi} matrix and \code{labels} is omitted, all columns are used.
-If \code{x} is a Cocktail object, \code{labels} must be supplied.}
+\item{top_k}{Optional integer ≥ 1. When \code{species_cluster_phi = TRUE},
+keep only the top \code{k} species per group after sorting; default
+\code{NULL} keeps all.}
 
-\item{min_phi}{Numeric threshold used only when \code{x} is a \eqn{\phi} matrix:
-keep species with \eqn{\phi \ge} \code{min_phi}. Default is \code{0.20}.}
-
-\item{top_k}{Optional integer used only when \code{x} is a \eqn{\phi} matrix:
-after filtering by \code{min_phi}, keep the top \code{k} species by \eqn{\phi}
-for each requested label. Default \code{NULL} keeps all that pass \code{min_phi}.}
-
-\item{sort_desc}{Logical; when \code{x} is a \eqn{\phi} matrix, sort species by
-\eqn{\phi} decreasing (default \code{TRUE}).}
+\item{sort_desc}{Logical; when \code{species_cluster_phi = TRUE}, sort
+species by \eqn{\phi} decreasing if \code{TRUE} (default).}
 }
 \value{
 \itemize{
-\item If \code{x} is a Cocktail object: a named list of character vectors
-(species names) for the requested labels.
-\item If \code{x} is a \eqn{\phi} matrix: a named list of data frames
-(one per label) with columns \code{species} and \code{phi}.
+\item If \code{species_cluster_phi = FALSE}: a named list of character
+vectors (species names per group).
+\item If \code{species_cluster_phi = TRUE}: a named list of data frames
+(one per group) with columns \code{species} and \code{phi}.
 }
 }
 \description{
-Return the diagnostic species set for selected Cocktail nodes.
-Works with either a Cocktail object (membership is binary) or a
-species-by-nodes \eqn{\phi} matrix produced by \code{cocktail_fuzzy()}.
+Return diagnostic species sets for selected Cocktail nodes or node unions.
+Works with a Cocktail object produced by \code{cocktail_cluster()} and uses:
+\itemize{
+\item \code{x$Cluster.species} — topological species per node (binary or
+positive weights; any value > 0 is treated as membership),
+\item optionally \code{x$Species.cluster.phi} — species–cluster \eqn{\phi}
+(if \code{species_cluster_phi = TRUE}).
+}
+
+The \code{labels} argument can be either:
+\itemize{
+\item a vector of node IDs / labels, where each element is treated as a
+separate node; or
+\item a \strong{list}, where each element is a vector of node IDs / labels,
+and each list element is treated as a \strong{union group} of those
+nodes (species are the union across the nodes in that group).
+}
+
+Behaviour:
+
+\describe{
+
+\item{\code{species_cluster_phi = FALSE}}{
+For each group, return the union of its \strong{topological species}
+(from \code{x$Cluster.species}). Output: named list of character vectors
+of species names.
+}
+
+\item{\code{species_cluster_phi = TRUE}}{
+Requires \code{x$Species.cluster.phi}. For each group (node or union),
+define group-level species–group \eqn{\phi(s,g)} as the \strong{maximum}
+across the nodes in that group:
+\deqn{\phi(s,g) = \max_{k \in \text{group}} \phi(s,k)}
+Negative values are set to 0.
+
+Filtering:
+\itemize{
+\item If \code{min_phi} is \code{NULL}, the function returns all
+\strong{topological species} of the group (from
+\code{Cluster.species}), with their group-level \eqn{\phi(s,g)}.
+\item If \code{min_phi} is provided (numeric), it returns \emph{all}
+species whose group-level \eqn{\phi(s,g) \ge \code{min_phi}},
+regardless of whether they are topological or not.
+}
+
+Species are sorted by \eqn{\phi} decreasing if \code{sort_desc = TRUE}.
+If \code{top_k} is non-NULL, only the top \code{k} species (after sorting
+and filtering) are kept.
+
+Output: named list of data frames, one per group, with columns
+\code{species} and \code{phi}.
+}
+
+}
+
+If \code{species_cluster_phi = TRUE} but \code{x$Species.cluster.phi} is
+missing, the function issues a warning, suggests recomputing
+\code{cocktail_cluster(..., species_cluster_phi = TRUE)}, and falls back to
+returning only topological species (as if \code{species_cluster_phi = FALSE}).
 }
 \seealso{
-\code{\link{cocktail_fuzzy}}
+\code{\link{cocktail_cluster}}, \code{\link{assign_releves}}
 }
