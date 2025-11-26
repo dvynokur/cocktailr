@@ -2,11 +2,12 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign relevés (plots) to Cocktail groups using relative cover and species–cluster φ}
+\title{Assign relevés (plots) to Cocktail groups using covers and species–cluster φ}
 \usage{
 assign_releves(
   x,
-  strategy = c("num_sp", "cover", "phi_topo", "phi_cover"),
+  vegmatrix,
+  strategy = c("count", "cover", "phi_topo", "phi_cover_topo", "phi_cover", "phi"),
   phi_cut = 0.3,
   clusters = NULL,
   min_phi = 0.2,
@@ -15,110 +16,120 @@ assign_releves(
 }
 \arguments{
 \item{x}{A Cocktail object (list) with components
-\code{Cluster.species}, \code{Cluster.merged},
-\code{Cluster.height}, and \code{Plot.cluster}, e.g. from
-\code{\link{cocktail_cluster}()}. For strategies
-\code{"phi_topo"} and \code{"phi_cover"}, the object must also
-contain \code{Species.cluster.phi}, a matrix of Option A φ values
-(species × nodes).}
+\code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height},
+and \code{Plot.cluster} (e.g. from \code{\link{cocktail_cluster}()}).
+For strategies \code{"phi_topo"}, \code{"phi_cover_topo"},
+\code{"phi_cover"}, and \code{"phi"}, \code{x$Species.cluster.phi}
+should be present; otherwise a fallback is used.}
 
-\item{strategy}{Character, one of
-\code{c("num_sp","cover","phi_topo","phi_cover")}.}
+\item{vegmatrix}{Numeric matrix or data.frame of covers (plots × species).
+Row names must include the plots in \code{x}; column names must include
+the species used in \code{x}. Missing values are treated as 0.}
 
-\item{phi_cut}{Numeric in (0,1). Height cut used to choose \strong{parent
-clusters} (unless \code{clusters} is supplied). Parent clusters at
-a cut are the topmost nodes with height ≥ \code{phi_cut} that do
-not have an ancestor also at/above the cut.}
+\item{strategy}{One of
+\code{c("count","cover","phi_topo","phi_cover_topo","phi_cover","phi")}.}
 
-\item{clusters}{Optional selection of clusters \strong{instead of}
-\code{phi_cut}.
-\itemize{
-\item If a \strong{vector} of node labels/IDs
-(e.g., \code{c("c_123","c_456")} or \code{c(123,456)}),
-each element forms a separate group.
-\item If a \strong{list}, each element is a \strong{union group} of several
-nodes, e.g., \code{list(c("c_123","c_234"), 567)}.
-}
-Within each group, if both an ancestor and its descendant are
-present, only the \strong{topmost} (ancestor) is kept to avoid
-double-counting.}
+\item{phi_cut}{Numeric in (0,1). Height cut used to choose parent clusters
+(topmost nodes with height ≥ \code{phi_cut}) when \code{clusters} is not given.}
 
-\item{min_phi}{Numeric in (0,1). Minimum φ value for
-\code{strategy = "phi_cover"}: species–group φ < \code{min_phi} are
-set to 0 before computing group φ-strength. Default 0.2. Ignored
-for other strategies.}
+\item{clusters}{Optional selection of clusters instead of \code{phi_cut}.
+If a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
+each element defines a separate group. If a list, each element is a union
+of several nodes (OR of their memberships). Within each group, if both
+an ancestor and descendant are present, only the topmost (ancestor) is kept.}
 
-\item{min_group_size}{Integer ≥ 1. After assignment, any group with
-fewer than this many plots is relabeled \code{"not assigned"}. Default 1
-(no collapsing).}
+\item{min_phi}{Numeric in (0,1). Minimum \eqn{\phi} for strategies
+\code{"phi_cover"} and \code{"phi"}: species–group \eqn{\phi < \code{min_phi}}
+are set to 0. Ignored by other strategies. Default 0.2.}
+
+\item{min_group_size}{Integer ≥ 1. After assignment, any group with fewer
+than this many plots is relabeled \code{"-"}. Default 1.}
 }
 \value{
-A named character vector of length equal to the number of plots, with
-values equal to group labels (e.g. \code{"g_12"}, \code{"g_5_7"}) or
-\code{"not assigned"}. An attribute \code{"details"} is attached
-containing the strategy, groups used, scoring summaries, and the
-arguments used.
+A named character vector, with names = plot IDs and values = group labels
+(e.g. \code{"g_12"}, \code{"g_5_7"}), \code{"+"} for ties,
+\code{"-"} for groups collapsed by \code{min_group_size}, or \code{NA}
+when no group wins. An attribute \code{"details"} is attached with
+diagnostics (groups used, strategy, counts, etc.).
 }
 \description{
-Assign plots to groups derived from a Cocktail tree using only the
-information stored in a fitted Cocktail object:
-\code{x$Plot.cluster} (relative covers per plot × node),
-\code{x$Cluster.species} (topological species per node),
-and optionally \code{x$Species.cluster.phi} (species–cluster φ).
-
-Four strategies are supported:
+Assign plots to groups derived from a Cocktail tree using:
 \itemize{
-\item \strong{"num_sp"} — For each group, count its \emph{topological} species
-(from \code{x$Cluster.species}). For any plot, the eligible groups
-are those to which the plot belongs (non-zero membership in
-\code{x$Plot.cluster}, or OR-union for union groups). The winner is
-the group with the \strong{largest number of topological species} among
-those eligible (ties → \code{"not assigned"}).
-\item \strong{"cover"} — For each group, the score for a plot is the
-\strong{sum of relative covers} from \code{x$Plot.cluster} across all
-nodes in that group (for single-node groups this is just the
-relative cover of that node). The winner is the group with
-\strong{highest relative cover} for that plot (ties → \code{"not assigned"}).
-\item \strong{"phi_topo"} — Requires \code{x$Species.cluster.phi}. For each
-group, build a \strong{topological species set} (union of its nodes'
-topological species) and a \strong{species–group φ} by taking, for each
-species, the \strong{maximum φ} across the group's nodes (negative φ are
-set to 0). The group-level “φ-strength” is the \strong{sum of these φ}
-over its topological species. For a plot, eligible groups are those
-to which the plot belongs; the winner has the \strong{largest φ-strength}
-among eligible groups.
-\item \strong{"phi_cover"} — Requires \code{x$Species.cluster.phi}. As in
-\code{"phi_topo"}, compute species–group φ (max over nodes in group),
-but then \strong{threshold} by \code{min_phi}: φ < \code{min_phi} are
-set to 0. For each group, define its φ-strength as the sum of the
-remaining φ over its topological species. The score for a plot and
-group is then \strong{relative cover × φ-strength}. The winner is the
-group with the highest such score among eligible groups.
+\item \code{x$Plot.cluster} — cluster membership per plot (non-zero = member);
+\item \code{x$Cluster.species} — topological species per node;
+\item \code{vegmatrix} — per-plot species covers (plots × species);
+\item optionally \code{x$Species.cluster.phi} — species–cluster \eqn{\phi}.
 }
 
-In all strategies, a plot is considered \strong{eligible} for a group if
-it has any non-zero membership for the group's nodes in
-\code{x$Plot.cluster} (OR-union for union groups). Per-plot scores
-are compared only across eligible groups. Ties or all-NA scores yield
-\code{"not assigned"}.
+Strategies (per plot, per group):
+
+\describe{
+
+\item{\code{"count"}}{
+For each cluster, count how many of its topological species are present
+in the relevé. The winner is the cluster with the largest count.
+If several clusters share the same maximum, the plot is labeled \code{"+"}.
+If no cluster has any species present, the plot gets \code{NA}.
 }
-\details{
-\strong{Groups and union groups.}
+
+\item{\code{"cover"}}{
+For each cluster, sum the covers of its topological species that are
+present in the relevé. The winner is the cluster with the highest sum.
+If there is a tie, use the number of species (as in \code{"count"})
+as a tie-breaker; if still tied, label \code{"+"}. Plots with zero
+cover for all clusters get \code{NA}.
+
+If \code{x$Plot.cluster} appears to be strictly binary (0/1), the function
+issues a warning and automatically falls back to \code{strategy = "count"}.
+}
+
+\item{\code{"phi_topo"}}{
+Requires \code{x$Species.cluster.phi}. For each cluster and species,
+define \eqn{\phi(s,g)} as the maximum of \eqn{\phi} across that group's
+nodes (negatives set to 0). For a given plot, restrict to the cluster's
+topological species that are present in the relevé and sum their
+\eqn{\phi} values. The winner has the largest such sum. Ties are broken
+first by total cover of these species, then by their species count;
+if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
+}
+
+\item{\code{"phi_cover_topo"}}{
+Requires \code{x$Species.cluster.phi}. As in \code{"phi_topo"}, use
+the cluster's topological species only, but score each cluster in a plot
+by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its topological
+species present in the relevé. The winner has the largest score.
+If there is a tie, use the number of these species as a tie-breaker;
+if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
+}
+
+\item{\code{"phi_cover"}}{
+Requires \code{x$Species.cluster.phi}. For each cluster and species,
+define \eqn{\phi(s,g)} as above, then keep only species with
+\eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these
+species that are present in the relevé and compute the score:
+\eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)}. The winner has the largest
+score; ties are broken by total cover of these species, then by their
+species count; if still tied, label \code{"+"}. If all scores are 0,
+the plot gets \code{NA}.
+}
+
+\item{\code{"phi"}}{
+Requires \code{x$Species.cluster.phi}. For each cluster and species,
+define \eqn{\phi(s,g)} and keep only species with
+\eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these species
+that are present in the relevé and sum their \eqn{\phi} values.
+The winner has the largest sum. Ties are broken by total cover of these
+species, then by their species count; if still tied, label \code{"+"}.
+If all sums are 0, the plot gets \code{NA}.
+}
+
+}
+
+If a φ-based strategy is requested but \code{x$Species.cluster.phi} is
+missing, the function issues a warning and automatically falls back to
+\code{"count"} (when \code{x$Plot.cluster} is binary) or \code{"cover"}
+(when it is not).
+
 Groups are defined either by \code{phi_cut} (parent nodes at that cut)
-or explicitly by \code{clusters}. When \code{clusters} is a list, each
-element is a union group of several nodes. Plot membership in a union
-group is taken as the OR-union of membership over its nodes
-(non-zero entries in \code{x$Plot.cluster}); the topological species
-of a union group are the union of the nodes' topological species
-(rows of \code{x$Cluster.species}).
-
-\strong{Species–group φ for union groups.}
-For \code{"phi_topo"} and \code{"phi_cover"}, species–group φ for a
-union group is derived from \code{x$Species.cluster.phi} by taking the
-maximum φ over the group's nodes for each species. Negative φ values
-are set to 0 before aggregation. For \code{"phi_cover"}, φ-values
-below \code{min_phi} are additionally set to 0.
-}
-\seealso{
-\code{\link{cocktail_cluster}}, \code{\link{clusters_at_cut}}
+or explicitly by \code{clusters}, which can define union groups of nodes.
 }
