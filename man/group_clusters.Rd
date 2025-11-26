@@ -20,34 +20,31 @@ group_clusters(
 \arguments{
 \item{x}{Cocktail object with \code{Cluster.height} and \code{Plot.cluster}.}
 
-\item{phi_cut}{Numeric in (0,1). Keep \strong{all} nodes with height \eqn{\ge} \code{phi_cut}.}
+\item{phi_cut}{Numeric in (0,1). Keep all nodes with height ≥ \code{phi_cut}.}
 
 \item{k_partition}{Positive integer, number of node groups to form.}
 
-\item{method}{\code{"kmeans"} or \code{"hclust"}.}
+\item{method}{"kmeans" or "hclust".}
 
 \item{feature_scale}{Logical; if \code{TRUE} (default), standardize plot-columns.}
 
 \item{kmeans_seed}{Optional integer seed for reproducible k-means.}
 
-\item{dist_method}{Distance for \code{method="hclust"} (default \code{"manhattan"}).}
+\item{dist_method}{Distance for \code{method="hclust"} (default "manhattan").}
 
-\item{clust_method}{Linkage for \code{method="hclust"} (default \code{"average"}).}
+\item{clust_method}{Linkage for \code{method="hclust"} (default "average").}
 
-\item{use_parallelDist}{Logical; if \code{TRUE}, try \code{parallelDist::parDist()};
-fallback to \code{stats::dist()}.}
+\item{use_parallelDist}{Logical; if \code{TRUE}, try \code{parallelDist::parDist()}; fallback to \code{stats::dist()}.}
 
-\item{use_fastcluster}{Logical; if \code{TRUE}, try \code{fastcluster::hclust()};
-fallback to \code{stats::hclust()}.}
+\item{use_fastcluster}{Logical; if \code{TRUE}, try \code{fastcluster::hclust()}; fallback to \code{stats::hclust()}.}
 }
 \value{
 A named character vector mapping node labels (e.g., \code{"c_123"}) to
-partition labels (\code{"g1"}, \code{"g2"}, ...). The object has attributes:
+partition labels (\code{"g1"}, \code{"g2"}, …). Attributes:
 \itemize{
-\item \code{"clusters_for_assign"}: \strong{list of integer vectors},
-one per group \code{g1..gK}, each containing the node IDs in that group.
-\item \code{"details"}: list with method, \code{k_partition}, kept node IDs,
-dedup info, and (for hclust) the \code{hclust} object and settings.
+\item \code{"clusters_for_assign"}: \strong{list of integer vectors} (one per \code{"g#"}), node IDs in each group.
+\item \code{"details"}: list with method, \code{k_partition}, \code{phi_cut}, kept IDs/labels (pre/post dedup),
+and (for hclust) the \code{hclust} object and settings.
 }
 }
 \description{
@@ -56,37 +53,12 @@ Partitions \strong{nodes of the Cocktail tree} (i.e., internal clusters) into
 
 Steps:
 \enumerate{
-\item \strong{Select nodes:} keep \strong{all} nodes whose height \eqn{\phi} is
-\code{>= phi_cut}. (No “topmost” filtering: ancestors and descendants
-that pass the cut are all kept.)
+\item \strong{Select nodes:} keep \strong{all} nodes whose height φ is \verb{>= phi_cut}
+(no “topmost” filtering).
 \item \strong{Feature matrix (nodes × plots):} take \code{x$Plot.cluster} columns for
-the kept nodes and transpose to get a binary matrix with \strong{rows = nodes},
-\strong{columns = plots}.
-\item \strong{Deduplicate identical nodes:} if two nodes have identical plot
-memberships, drop duplicates \strong{keeping the rightmost node} (highest column
-index in the original \code{Plot.cluster}).
-\item \strong{(Optional) feature scaling:} standardize plot-columns when
-\code{feature_scale = TRUE} so plots contribute comparably.
-\item \strong{Partition nodes:}
-\itemize{
-\item \code{method = "kmeans"}: k-means on the node × plot matrix.
-\item \code{method = "hclust"}: distances (default Manhattan) + linkage
-(default UPGMA/"average") → cut into \code{k_partition} groups.
-Group IDs are \strong{relabeled} in dendrogram left-to-right order for readability.
+the kept nodes and transpose to get rows = nodes, cols = plots.
+\item \strong{Deduplicate identical nodes:} drop duplicates keeping the \strong{rightmost} node.
+\item \strong{(Optional) scaling:} standardize plot-columns when \code{feature_scale = TRUE}.
+\item \strong{Partition nodes:} k-means or hclust (Manhattan + UPGMA by default).
 }
-}
-}
-\details{
-This function clusters \strong{nodes} (not plots). The returned grouping can be fed
-directly to \code{assign_releves(clusters = ...)}: we return
-\code{attr(result, "clusters_for_assign")} as a \strong{list of integer vectors},
-where each list element corresponds to one partition group \code{g1, g2, ...},
-and contains the \strong{node IDs} (integers) assigned to that group. If any nodes
-were removed as duplicates (identical plot membership), we keep only the
-rightmost occurrence.
-
-Group labels are always \code{"g1"}, \code{"g2"}, ... regardless of method.
-}
-\seealso{
-\code{\link{assign_releves}}
 }

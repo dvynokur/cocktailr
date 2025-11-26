@@ -211,6 +211,15 @@ assign_releves <- function(
   CM <- x$Cluster.merged
   H  <- x$Cluster.height
   PC <- x$Plot.cluster
+
+  ## ---- normalize Plot.cluster colnames to "c_<index>" ---------
+  if (is.null(colnames(PC))) {
+    colnames(PC) <- paste0("c_", seq_len(ncol(PC)))
+  } else {
+    num_only <- grepl("^\\d+$", colnames(PC))
+    colnames(PC)[num_only] <- paste0("c_", colnames(PC)[num_only])
+  }
+
   plot_names <- rownames(PC); if (is.null(plot_names)) plot_names <- paste0("plot_", seq_len(nrow(PC)))
   spp_all <- colnames(CS)
 
@@ -355,9 +364,7 @@ assign_releves <- function(
     # Scores = transformed covers × Phi (S' × G)
     W <- .cover_transform(vm, cover_transform)
     S <- as.matrix(W %*% Phi)
-    # eligibility: min_cover AND plot must be in the group topologically?
-    # For fuzzy we typically do NOT require topological membership; keep it liberal.
-    # Apply only min_cover:
+    # eligibility: min_cover only (no topology requirement for fuzzy)
     S[S_elig_raw < min_cover] <- -Inf
 
     winner <- max.col(S, ties.method = "first")
