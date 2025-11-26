@@ -1,171 +1,221 @@
-#' Partition Cocktail nodes (clusters) into k groups
+#' Distance between Cocktail clusters based on species fidelity (φ)
 #'
 #' @description
-#' Partitions **nodes of the Cocktail tree** (i.e., internal clusters) into
-#' `k_partition` groups using either k-means or hierarchical clustering.
+#' Compute a φ-based distance between a set of Cocktail clusters (internal nodes).
+#' For each cluster, a species fidelity profile is taken directly from
+#' \code{x$Species.cluster.phi}, restricted to the cluster's topological species
+#' set. Pairwise distances between clusters are then derived from these profiles
+#' via a symmetric similarity measure.
 #'
-#' Steps:
-#' 1) **Select nodes:** keep **all** nodes whose height φ is `>= phi_cut`
-#'    (no “topmost” filtering).
-#' 2) **Feature matrix (nodes × plots):** take `x$Plot.cluster` columns for
-#'    the kept nodes and transpose to get rows = nodes, cols = plots.
-#' 3) **Deduplicate identical nodes:** drop duplicates keeping the **rightmost** node.
-#' 4) **(Optional) scaling:** standardize plot-columns when `feature_scale = TRUE`.
-#' 5) **Partition nodes:** k-means or hclust (Manhattan + UPGMA by default).
+#' @param x A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
+#'   containing at least:
+#'   \itemize{
+#'     \item \code{Cluster.species} — nodes × species (0/1), and
+#'     \item \code{Species.cluster.phi} — species × nodes Option A φ-matrix.
+#'   }
+#'   Note: \code{Species.cluster.phi} is only present if
+#'   \code{species_cluster_phi = TRUE} was used in \code{\link{cocktail_cluster}}.
 #'
-#' @param x Cocktail object with `Cluster.height` and `Plot.cluster`.
-#' @param phi_cut Numeric in (0,1). Keep all nodes with height ≥ `phi_cut`.
-#' @param k_partition Positive integer, number of node groups to form.
-#' @param method "kmeans" or "hclust".
-#' @param feature_scale Logical; if `TRUE` (default), standardize plot-columns.
-#' @param kmeans_seed Optional integer seed for reproducible k-means.
-#' @param dist_method Distance for `method="hclust"` (default "manhattan").
-#' @param clust_method Linkage for `method="hclust"` (default "average").
-#' @param use_parallelDist Logical; if `TRUE`, try `parallelDist::parDist()`; fallback to `stats::dist()`.
-#' @param use_fastcluster Logical; if `TRUE`, try `fastcluster::hclust()`; fallback to `stats::hclust()`.
+#' @param clusters Optional cluster identifiers (nodes) to be compared. Can be a
+#'   numeric vector of node indices (e.g. \code{c(12, 27)}) or a character vector
+#'   of node labels (e.g. \code{c("c_12", "c_27")}). Each element refers to a
+#'   single internal node; no grouping/union is performed.
+#'   If \code{NULL} or missing, **all** internal nodes
+#'   \code{1:nrow(x$Cluster.species)} are used.
+#'
+#' @details
+#' Let \eqn{\phi(s, k)} be the Option A φ-coefficient between species \eqn{s}
+#' and cluster \eqn{k}, stored in \code{x$Species.cluster.phi}. For each
+#' cluster \eqn{k}:
+#'
+#' \enumerate{
+#'   \item Its **topological species set** \eqn{S_k} is defined as the set of
+#'         species with membership 1 in \code{x$Cluster.species[k,]}.
+#'   \item A species fidelity profile \eqn{\phi_k(s)} is taken as
+#'         \eqn{\phi(s,k)} for \eqn{s \in S_k}, and 0 for species outside
+#'         \eqn{S_k}. All negative φ values are set to 0 beforehand, so only
+#'         positive fidelity contributes.
+#' }
+#'
+#' For any pair of clusters \eqn{A,B}, define:
+#'
+#' \deqn{
+#'   \mathrm{sim}(A \to B) =
+#'     \frac{\sum_{s \in S_A} \phi_B(s)}
+#'          {\sum_{s \in S_A} \phi_A(s)}
+#' }
+#'
+#' with the convention that if the denominator is 0 (no positive φ for
+#' \eqn{A}), then \eqn{\mathrm{sim}(A\to B) = 0}. The symmetric similarity is
+#'
+#' \deqn{
+#'   \mathrm{sim}_{\mathrm{sym}}(A,B) =
+#'     \frac{1}{2}\left[ \mathrm{sim}(A\to B) + \mathrm{sim}(B\to A) \right],
+#' }
+#'
+#' and the distance is \eqn{d(A,B) = 1 - \mathrm{sim}_{\mathrm{sym}}(A,B)}.
 #'
 #' @return
-#' A named character vector mapping node labels (e.g., `"c_123"`) to
-#' partition labels (`"g1"`, `"g2"`, …). Attributes:
-#' - `"clusters_for_assign"`: **list of integer vectors** (one per `"g#"`), node IDs in each group.
-#' - `"details"`: list with method, `k_partition`, `phi_cut`, kept IDs/labels (pre/post dedup),
-#'   and (for hclust) the `hclust` object and settings.
+#' A \code{\link[stats]{dist}} object of pairwise distances between the clusters.
+#' No additional attributes are attached; you can pass the result directly to
+#' \code{\link[stats]{hclust}} or other clustering/ordination functions.
+#'
+#' @seealso \code{\link{cocktail_cluster}}, \code{\link{clusters_at_cut}}
+#' @importFrom stats as.dist
 #' @export
 group_clusters <- function(
     x,
-    phi_cut          = 0.30,
-    k_partition      = 2L,
-    method           = c("kmeans","hclust"),
-    feature_scale    = TRUE,
-    kmeans_seed      = NULL,
-    dist_method      = "manhattan",
-    clust_method     = "average",
-    use_parallelDist = FALSE,
-    use_fastcluster  = FALSE
+    clusters = NULL
 ) {
-  ## --- helpers ---
-  .stop_x <- function() {
-    stop("x must include Cluster.height and Plot.cluster.", call. = FALSE)
-  }
-  .relabel_by_first_leaf <- function(hc, grp) {
-    ord <- hc$order
-    labs <- hc$labels
-    pos <- match(labs, labs[ord])
-    pos_first <- tapply(seq_along(labs), grp, function(ix) min(pos[ix]))
-    old_ids <- as.integer(names(pos_first))
-    new_ids <- seq_along(old_ids)[order(unlist(pos_first))]
-    map <- stats::setNames(new_ids, old_ids)
-    unname(map[as.character(grp)])
+  ## ---- basic checks -------------------------------------------------------
+  if (!is.list(x) || !"Cluster.species" %in% names(x)) {
+    stop("`x` must be a Cocktail object with a `Cluster.species` component.")
   }
 
-  ## --- checks ---
-  method <- match.arg(method)
-  if (!is.list(x) || !all(c("Cluster.height","Plot.cluster") %in% names(x))) .stop_x()
-
-  H  <- x$Cluster.height
-  PC <- x$Plot.cluster
-
-  if (!is.numeric(phi_cut) || length(phi_cut) != 1L || !is.finite(phi_cut) || phi_cut <= 0 || phi_cut >= 1)
-    stop("`phi_cut` must be a number in (0,1).", call. = FALSE)
-
-  k_partition <- as.integer(k_partition)
-  if (!is.finite(k_partition) || k_partition < 1L)
-    stop("`k_partition` must be a positive integer.", call. = FALSE)
-
-  # --- NEW: auto-label Plot.cluster columns if missing ---
-  if (is.null(colnames(PC))) {
-    colnames(PC) <- paste0("c_", seq_len(ncol(PC)))
+  # Explicit, user-friendly check for Species.cluster.phi
+  if (!"Species.cluster.phi" %in% names(x) || is.null(x$Species.cluster.phi)) {
+    stop(
+      "`x$Species.cluster.phi` is not available.\n",
+      "Recompute the Cocktail clustering with `species_cluster_phi = TRUE`, e.g.:\n",
+      "  x <- cocktail_cluster(vegmatrix, species_cluster_phi = TRUE, ...)\n",
+      "and then call `group_clusters(x, ...)`."
+    )
   }
 
-  # sanity: heights length should match number of node columns
-  if (length(H) != ncol(PC)) {
-    stop("Length of `Cluster.height` (", length(H),
-         ") does not match the number of `Plot.cluster` columns (", ncol(PC), ").",
-         "\nTip: ensure your Cocktail object keeps the original column order and size.", call. = FALSE)
+  CS  <- x$Cluster.species         # nodes × species (0/1)
+  Phi <- x$Species.cluster.phi     # species × nodes
+
+  if (!is.matrix(CS))
+    stop("`x$Cluster.species` must be a matrix.")
+  if (!is.matrix(Phi))
+    stop("`x$Species.cluster.phi` must be a matrix.")
+
+  n_nodes  <- nrow(CS)
+  sp_names <- colnames(CS)
+  if (is.null(sp_names))
+    stop("`x$Cluster.species` must have species column names.")
+
+  if (is.null(rownames(Phi)))
+    stop("`x$Species.cluster.phi` must have species row names.")
+
+  ## ---- align species between CS and Phi -----------------------------------
+  if (!all(sp_names %in% rownames(Phi))) {
+    missing_sp <- setdiff(sp_names, rownames(Phi))
+    stop("`Species.cluster.phi` is missing species: ",
+         paste(head(missing_sp, 10), collapse = ", "),
+         if (length(missing_sp) > 10) " ..." else "")
   }
+  Phi <- Phi[sp_names, , drop = FALSE]  # reorder rows
 
-  ## --- 1) keep ALL nodes with H >= phi_cut (no topmost filtering) ---
-  keep_nodes <- which(H >= phi_cut)
-  if (!length(keep_nodes)) stop("No nodes meet phi_cut = ", phi_cut, call. = FALSE)
-  kept_ids  <- keep_nodes
-  kept_labs <- paste0("c_", kept_ids)
+  # keep only non-negative fidelity
+  Phi_pos <- pmax(Phi, 0)
+  storage.mode(Phi_pos) <- "double"
 
-  # subset PC to kept nodes; build node × plot matrix
-  if (!all(kept_labs %in% colnames(PC)))
-    stop("Internal mismatch: some kept nodes not found in Plot.cluster columns: ",
-         paste(setdiff(kept_labs, colnames(PC)), collapse = ", "), call. = FALSE)
-
-  M <- t(as.matrix(PC[, kept_labs, drop = FALSE]))  # rows = nodes, cols = plots
-  storage.mode(M) <- "double"
-
-  ## --- 3) deduplicate identical nodes (rows); keep the rightmost node ---
-  keys <- apply(M, 1L, function(r) paste0(as.integer(r), collapse = ""))
-  idx_by_key <- split(seq_along(keys), keys)
-  keep_row_ix <- vapply(idx_by_key, function(ix) ix[length(ix)], integer(1))
-  keep_row_ix <- sort(keep_row_ix)
-  Mded <- M[keep_row_ix, , drop = FALSE]
-  kept_ids_dedup  <- kept_ids[keep_row_ix]
-  kept_labs_dedup <- kept_labs[keep_row_ix]
-
-  if (nrow(Mded) < k_partition) {
-    stop("After deduplication there are only ", nrow(Mded),
-         " distinct nodes; cannot form k = ", k_partition, " groups.", call. = FALSE)
-  }
-
-  ## --- 4) feature scaling (optional) ---
-  Muse <- if (isTRUE(feature_scale)) scale(Mded) else Mded
-
-  ## --- 5) partition nodes ---
-  if (method == "kmeans") {
-    if (!is.null(kmeans_seed)) set.seed(as.integer(kmeans_seed))
-    km <- stats::kmeans(Muse, centers = k_partition, iter.max = 100, nstart = 10)
-    grp_ids <- km$cluster
-    grp_labels <- paste0("g", grp_ids)
-  } else {  # hclust
-    if (use_parallelDist && !requireNamespace("parallelDist", quietly = TRUE)) {
-      warning("parallelDist not available; falling back to stats::dist().")
-      use_parallelDist <- FALSE
+  ## ---- parse clusters argument into numeric node IDs ----------------------
+  if (missing(clusters) || is.null(clusters)) {
+    # use all internal nodes
+    ids <- seq_len(n_nodes)
+  } else {
+    if (is.list(clusters)) {
+      clusters <- unlist(clusters, use.names = FALSE)
     }
-    d <- if (use_parallelDist) parallelDist::parDist(Muse, method = dist_method)
-    else stats::dist(Muse, method = dist_method)
 
-    if (use_fastcluster && !requireNamespace("fastcluster", quietly = TRUE)) {
-      warning("fastcluster not available; falling back to stats::hclust().")
-      use_fastcluster <- FALSE
+    if (is.character(clusters)) {
+      ids <- as.integer(sub("^c_", "", clusters))
+    } else {
+      ids <- as.integer(clusters)
     }
-    hc <- if (use_fastcluster) fastcluster::hclust(d, method = clust_method)
-    else stats::hclust(d, method = clust_method)
 
-    grp_raw <- stats::cutree(hc, k = k_partition)
-    grp_ord <- .relabel_by_first_leaf(hc, grp_raw)
-    grp_labels <- paste0("g", grp_ord)
+    ids <- ids[is.finite(ids) & ids > 0L & ids <= n_nodes]
+    ids <- sort(unique(ids))
   }
 
-  ## --- outputs ---
-  out <- stats::setNames(grp_labels, kept_labs_dedup)
+  if (!length(ids)) {
+    stop("No valid cluster IDs found in `clusters` (after filtering to 1..",
+         n_nodes, ").")
+  }
 
-  groups <- split(kept_ids_dedup, grp_labels)
-  g_names <- paste0("g", sort(unique(as.integer(sub("^g", "", names(groups))))))
-  clusters_for_assign <- lapply(g_names, function(gn) {
-    if (gn %in% names(groups)) sort(groups[[gn]]) else integer(0)
-  })
-  names(clusters_for_assign) <- g_names
+  ## ---- map node IDs to columns of Phi_pos ---------------------------------
+  node_colnames <- colnames(Phi_pos)
+  if (is.null(node_colnames)) {
+    stop("`Species.cluster.phi` must have column names (node IDs, e.g. 'c_1').")
+  }
 
-  details <- list(
-    method        = method,
-    k_partition   = k_partition,
-    phi_cut       = phi_cut,
-    feature_scale = feature_scale,
-    dist_method   = if (method == "hclust") dist_method else NULL,
-    clust_method  = if (method == "hclust") clust_method else NULL,
-    kept_node_ids            = kept_ids,
-    kept_node_ids_dedup      = kept_ids_dedup,
-    kept_node_labels         = kept_labs,
-    kept_node_labels_dedup   = kept_labs_dedup
-  )
-  if (exists("hc")) details$hclust <- hc
+  cols_needed <- paste0("c_", ids)
+  col_ids     <- match(cols_needed, node_colnames)
+  if (anyNA(col_ids)) {
+    missing_cols <- cols_needed[is.na(col_ids)]
+    stop("`Species.cluster.phi` is missing columns: ",
+         paste(missing_cols, collapse = ", "))
+  }
 
-  structure(out,
-            clusters_for_assign = clusters_for_assign,
-            details = details)
+  ## ---- build cluster × species φ-matrix (species fidelity profiles) -------
+  n_cl   <- length(ids)
+  n_sp   <- length(sp_names)
+  labels <- paste0("c_", ids)
+
+  M <- matrix(0, nrow = n_cl, ncol = n_sp,
+              dimnames = list(labels, sp_names))
+
+  for (i in seq_len(n_cl)) {
+    k <- ids[i]
+
+    # topological species set: species with membership 1 in Cluster.species[k,]
+    sp_idx <- which(CS[k, ] > 0)
+
+    if (!length(sp_idx)) {
+      next  # this cluster will become all zeros; may be dropped later
+    }
+
+    col_k <- col_ids[i]
+    phi_k <- Phi_pos[sp_idx, col_k]
+
+    M[i, sp_idx] <- phi_k
+  }
+
+  ## ---- drop clusters with completely zero profiles (no positive φ) -------
+  zero_rows <- which(rowSums(M) <= 0)
+  if (length(zero_rows)) {
+    if (length(zero_rows) == nrow(M)) {
+      stop("All requested clusters have zero positive φ in their ",
+           "topological species sets; cannot compute distances.")
+    }
+    warning("Some clusters have zero positive φ in their topological species ",
+            "sets and will be dropped: ",
+            paste(rownames(M)[zero_rows], collapse = ", "))
+    keep <- setdiff(seq_len(nrow(M)), zero_rows)
+    M    <- M[keep, , drop = FALSE]
+    labels <- labels[keep]
+    ids    <- ids[keep]
+  }
+
+  n_cl <- nrow(M)
+  if (n_cl < 2L) {
+    stop("Fewer than two clusters remain after filtering; cannot build a ",
+         "distance matrix.")
+  }
+
+  ## ---- compute symmetric φ-based distance matrix --------------------------
+  Dmat <- matrix(0, n_cl, n_cl,
+                 dimnames = list(labels, labels))
+
+  for (i in 1L:(n_cl - 1L)) {
+    Si      <- which(M[i, ] > 0)
+    denom_i <- sum(M[i, Si])
+
+    for (j in (i + 1L):n_cl) {
+      Sj      <- which(M[j, ] > 0)
+      denom_j <- sum(M[j, Sj])
+
+      sim_i_to_j <- if (length(Si) && denom_i > 0) sum(M[j, Si]) / denom_i else 0
+      sim_j_to_i <- if (length(Sj) && denom_j > 0) sum(M[i, Sj]) / denom_j else 0
+
+      sim_sym <- 0.5 * (sim_i_to_j + sim_j_to_i)
+      d_ij    <- 1 - sim_sym
+
+      Dmat[i, j] <- Dmat[j, i] <- d_ij
+    }
+  }
+
+  stats::as.dist(Dmat)
 }

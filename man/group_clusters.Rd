@@ -2,63 +2,71 @@
 % Please edit documentation in R/group_clusters.R
 \name{group_clusters}
 \alias{group_clusters}
-\title{Partition Cocktail nodes (clusters) into k groups}
+\title{Distance between Cocktail clusters based on species fidelity (φ)}
 \usage{
-group_clusters(
-  x,
-  phi_cut = 0.3,
-  k_partition = 2L,
-  method = c("kmeans", "hclust"),
-  feature_scale = TRUE,
-  kmeans_seed = NULL,
-  dist_method = "manhattan",
-  clust_method = "average",
-  use_parallelDist = FALSE,
-  use_fastcluster = FALSE
-)
+group_clusters(x, clusters = NULL)
 }
 \arguments{
-\item{x}{Cocktail object with \code{Cluster.height} and \code{Plot.cluster}.}
+\item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
+containing at least:
+\itemize{
+\item \code{Cluster.species} — nodes × species (0/1), and
+\item \code{Species.cluster.phi} — species × nodes Option A φ-matrix.
+}
+Note: \code{Species.cluster.phi} is only present if
+\code{species_cluster_phi = TRUE} was used in \code{\link{cocktail_cluster}}.}
 
-\item{phi_cut}{Numeric in (0,1). Keep all nodes with height ≥ \code{phi_cut}.}
-
-\item{k_partition}{Positive integer, number of node groups to form.}
-
-\item{method}{"kmeans" or "hclust".}
-
-\item{feature_scale}{Logical; if \code{TRUE} (default), standardize plot-columns.}
-
-\item{kmeans_seed}{Optional integer seed for reproducible k-means.}
-
-\item{dist_method}{Distance for \code{method="hclust"} (default "manhattan").}
-
-\item{clust_method}{Linkage for \code{method="hclust"} (default "average").}
-
-\item{use_parallelDist}{Logical; if \code{TRUE}, try \code{parallelDist::parDist()}; fallback to \code{stats::dist()}.}
-
-\item{use_fastcluster}{Logical; if \code{TRUE}, try \code{fastcluster::hclust()}; fallback to \code{stats::hclust()}.}
+\item{clusters}{Optional cluster identifiers (nodes) to be compared. Can be a
+numeric vector of node indices (e.g. \code{c(12, 27)}) or a character vector
+of node labels (e.g. \code{c("c_12", "c_27")}). Each element refers to a
+single internal node; no grouping/union is performed.
+If \code{NULL} or missing, \strong{all} internal nodes
+\code{1:nrow(x$Cluster.species)} are used.}
 }
 \value{
-A named character vector mapping node labels (e.g., \code{"c_123"}) to
-partition labels (\code{"g1"}, \code{"g2"}, …). Attributes:
-\itemize{
-\item \code{"clusters_for_assign"}: \strong{list of integer vectors} (one per \code{"g#"}), node IDs in each group.
-\item \code{"details"}: list with method, \code{k_partition}, \code{phi_cut}, kept IDs/labels (pre/post dedup),
-and (for hclust) the \code{hclust} object and settings.
-}
+A \code{\link[stats]{dist}} object of pairwise distances between the clusters.
+No additional attributes are attached; you can pass the result directly to
+\code{\link[stats]{hclust}} or other clustering/ordination functions.
 }
 \description{
-Partitions \strong{nodes of the Cocktail tree} (i.e., internal clusters) into
-\code{k_partition} groups using either k-means or hierarchical clustering.
-
-Steps:
-\enumerate{
-\item \strong{Select nodes:} keep \strong{all} nodes whose height φ is \verb{>= phi_cut}
-(no “topmost” filtering).
-\item \strong{Feature matrix (nodes × plots):} take \code{x$Plot.cluster} columns for
-the kept nodes and transpose to get rows = nodes, cols = plots.
-\item \strong{Deduplicate identical nodes:} drop duplicates keeping the \strong{rightmost} node.
-\item \strong{(Optional) scaling:} standardize plot-columns when \code{feature_scale = TRUE}.
-\item \strong{Partition nodes:} k-means or hclust (Manhattan + UPGMA by default).
+Compute a φ-based distance between a set of Cocktail clusters (internal nodes).
+For each cluster, a species fidelity profile is taken directly from
+\code{x$Species.cluster.phi}, restricted to the cluster's topological species
+set. Pairwise distances between clusters are then derived from these profiles
+via a symmetric similarity measure.
 }
+\details{
+Let \eqn{\phi(s, k)} be the Option A φ-coefficient between species \eqn{s}
+and cluster \eqn{k}, stored in \code{x$Species.cluster.phi}. For each
+cluster \eqn{k}:
+
+\enumerate{
+\item Its \strong{topological species set} \eqn{S_k} is defined as the set of
+species with membership 1 in \code{x$Cluster.species[k,]}.
+\item A species fidelity profile \eqn{\phi_k(s)} is taken as
+\eqn{\phi(s,k)} for \eqn{s \in S_k}, and 0 for species outside
+\eqn{S_k}. All negative φ values are set to 0 beforehand, so only
+positive fidelity contributes.
+}
+
+For any pair of clusters \eqn{A,B}, define:
+
+\deqn{
+  \mathrm{sim}(A \to B) =
+    \frac{\sum_{s \in S_A} \phi_B(s)}
+         {\sum_{s \in S_A} \phi_A(s)}
+}
+
+with the convention that if the denominator is 0 (no positive φ for
+\eqn{A}), then \eqn{\mathrm{sim}(A\to B) = 0}. The symmetric similarity is
+
+\deqn{
+  \mathrm{sim}_{\mathrm{sym}}(A,B) =
+    \frac{1}{2}\left[ \mathrm{sim}(A\to B) + \mathrm{sim}(B\to A) \right],
+}
+
+and the distance is \eqn{d(A,B) = 1 - \mathrm{sim}_{\mathrm{sym}}(A,B)}.
+}
+\seealso{
+\code{\link{cocktail_cluster}}, \code{\link{clusters_at_cut}}
 }
