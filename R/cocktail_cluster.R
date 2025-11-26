@@ -11,22 +11,24 @@
 #' - Uses a **fixed, reproducible tie order**: when several pairs share the same
 #'   maximum phi at a step, they are processed in the same order that R fills the
 #'   lower-triangular distance matrix (scan by increasing column, then row).
-#' - Optionally writes **cover sums** into `Plot.cluster` instead of binary membership
-#'   via `plot_values = "sum_cover"`; sums are zeroed for plots not meeting the
-#'   m-threshold (cluster membership).
+#' - Optionally writes **relative cover** into `Plot.cluster` instead of binary membership
+#'   via `plot_values = "rel_cover"`; relative cover is defined as
+#'   (sum of cluster species covers per plot) / (total cover of the plot),
+#'   and values are zeroed for plots not meeting the m-threshold (cluster membership).
 #'
 #' @param vegmatrix A matrix or data frame with **plots in rows** and **species in columns**.
 #'   This is used twice:
 #'   (1) it is **binarized** internally to drive the clustering, and
 #'   (2) its **original numeric values** (with `NA` treated as 0) are used to compute
-#'       cover sums when `plot_values = "sum_cover"`.
+#'       relative cover when `plot_values = "rel_cover"`.
 #' @param progress  Logical; show a text progress bar (default `TRUE`).
-#' @param plot_values Character; one of `c("binary", "sum_cover")`.
+#' @param plot_values Character; one of `c("binary", "rel_cover")`.
 #'   - `"binary"` (default): `Plot.cluster` stores 0/1 plot membership per merge,
 #'     identical to the original behavior.
-#'   - `"sum_cover"`: `Plot.cluster` stores the **sum of covers** (row sums over
-#'     the cluster’s species) per plot and merge, but **only** for plots that meet
-#'     the current merge’s m-threshold (membership); non-member plots are set to 0.
+#'   - `"rel_cover"`: `Plot.cluster` stores the **relative cover** per plot and merge:
+#'       sum of covers over the cluster’s species divided by the total cover of the plot,
+#'       but **only** for plots that meet the current merge’s m-threshold (membership);
+#'       non-member plots or plots with zero total cover are set to 0.
 #'
 #' @return
 #' A list of class `"cocktail"` with:
@@ -37,7 +39,7 @@
 #'   \item `Cluster.height`  — numeric vector length n_merges: phi at each merge.
 #'   \item `Plot.cluster`    — matrix (n_plots × n_merges): plot values per merge.
 #'         It is **integer 0/1** when `plot_values = "binary"` and **numeric**
-#'         cover sums when `plot_values = "sum_cover"`.
+#'         relative cover when `plot_values = "rel_cover"`.
 #'   \item `species`         — character vector of species names kept after cleaning.
 #'   \item `plots`           — character vector of plot names.
 #' }
@@ -46,33 +48,19 @@
 #' - Binarization and removal of empty species happen internally and only affect the
 #'   set of columns that contribute to clustering. All returned components are aligned
 #'   to the species that had at least one presence after cleaning.
-#' - For `plot_values = "sum_cover"`, cover sums are computed from the **original**
-#'   `vegmatrix` values (after converting `NA` to 0), restricted to the species that
-#'   belong to the current cluster at each merge, and **zeroed** for plots that do not
-#'   meet the m-threshold (i.e., are not assigned to that merge).
+#' - For `plot_values = "rel_cover"`, relative cover is computed from the **original**
+#'   `vegmatrix` values (after converting `NA` to 0). For each merge, the function:
+#'   (1) identifies the cluster’s species, (2) sums their covers per plot,
+#'   (3) divides by the total cover in that plot (sum over all species), and
+#'   (4) **zeroes** values for plots that do not meet the m-threshold
+#'       (i.e., are not assigned to that merge) or have zero total cover.
 #' - Basic checks on the cover scale:
 #'   if input values appear **binary** (only 0/1) or contain **non-numeric codes**
 #'   (e.g., `+, r, 2a`), the function warns and **falls back to `"binary"`** output.
 #'   If values look **ordinal** (e.g., 1..6 / 1..10), the function warns but proceeds
-#'   to compute sums.
+#'   to compute relative cover, noting that percentage cover is recommended.
 #'
 #' @seealso \code{\link{plot_cocktail}}, \code{\link{cocktail_fuzzy}}, \code{\link{assign_releves}}
-#'
-#' @examples
-#' # Toy example
-#' vm <- matrix(c(1,0,1,
-#'                0,1,0,
-#'                1,1,0),
-#'              nrow = 3, byrow = TRUE,
-#'              dimnames = list(paste0("plot", 1:3),
-#'                              c("sp1","sp2","sp3")))
-#'
-#' # Binary membership (as before)
-#' res_bin <- cocktail_cluster(vm, progress = FALSE, plot_values = "binary")
-#' names(res_bin)
-#'
-#' # Sum of covers (here numerically same as binary, but works with % covers)
-#' res_sum <- cocktail_cluster(vm, progress = FALSE, plot_values = "sum_cover")
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
@@ -80,7 +68,7 @@
 cocktail_cluster <- function(
     vegmatrix,
     progress = TRUE,
-    plot_values = c("binary", "sum_cover")
+    plot_values = c("binary", "rel_cover")
 ) {
   plot_values <- match.arg(plot_values)
 
@@ -89,7 +77,7 @@ cocktail_cluster <- function(
     stop("vegmatrix must be a matrix or data.frame with plots in rows and species in columns.")
   }
 
-  # Keep original covers for optional sum output
+  # Keep original covers for relative cover output
   vm_raw <- as.matrix(vegmatrix)
   vm_raw[is.na(vm_raw)] <- 0
 
@@ -108,20 +96,20 @@ cocktail_cluster <- function(
   }
   scale_info <- detect_cover_scale(vm_raw)
 
-  # If user asked for cover-based output but data unsuitable, warn and force binary
+  # If user asked for relative cover but data unsuitable, warn and force binary
   if (plot_values != "binary") {
     if (scale_info$type %in% c("binary","non_numeric")) {
       warning(sprintf(
         "%s Using binary Plot.cluster instead.",
         if (scale_info$type == "binary") {
-          "Cover data are binary (0/1); cumulative covers are not meaningful."
+          "Cover data are binary (0/1); relative covers are not meaningful."
         } else {
-          "Non-numeric cover codes detected; cumulative covers not computed."
+          "Non-numeric cover codes detected; relative covers not computed."
         }
       ))
       plot_values <- "binary"
     } else if (scale_info$type == "ordinal") {
-      warning("Cover data look ordinal (e.g., 1..6 / 1..10). Proceeding with sums, but percentage cover is recommended.")
+      warning("Cover data look ordinal (e.g., 1..6 / 1..10). Proceeding with relative cover, but percentage cover is recommended.")
     }
   }
 
@@ -152,6 +140,9 @@ cocktail_cluster <- function(
   # global frequencies for Expected.plot.freq (from original species)
   p.freq <- as.numeric(Matrix::colSums(X0)) / N
   q.freq <- 1 - p.freq
+
+  # Total cover per plot (denominator for relative cover)
+  plot_totals <- rowSums(vm_raw, na.rm = TRUE)
 
   ## ---- helpers -------------------------------------------------------------
   Expected.plot.freq_ <- function(species.in.cluster) {
@@ -289,7 +280,7 @@ cocktail_cluster <- function(
   Cluster.species <- matrix(0L, n - 1L, n, dimnames = list(NULL, species))
   Cluster.info    <- matrix(0L, n - 1L, 2L,
                             dimnames = list(as.character(seq_len(n - 1L)), c("k","m")))
-  # numeric so it can hold sums when requested
+  # numeric so it can hold relative cover when requested
   Plot.cluster    <- matrix(0, N, n - 1L, dimnames = list(plots, NULL))
   Cluster.merged  <- matrix(0L, n - 1L, 2L)
   Cluster.height  <- array(0, n - 1L)
@@ -397,13 +388,17 @@ cocktail_cluster <- function(
 
       # Fill Plot.cluster per option
       if (plot_values == "binary") {
+        # 0/1 membership
         Plot.cluster[species_in_plot >= Cluster.info[i, 2L], i] <- 1
-      } else {
-        # cover-based: sum covers of the cluster species, zeroed outside membership
+
+      } else if (plot_values == "rel_cover") {
+        # Relative cover: sum of cluster covers / total cover per plot,
+        # zeroed outside membership or when total cover is zero
         cov_block <- vm_raw[, spp_idx, drop = FALSE]
         sums <- rowSums(cov_block, na.rm = TRUE)
-        sums[species_in_plot < Cluster.info[i, 2L]] <- 0
-        Plot.cluster[, i] <- sums
+        rel <- ifelse(plot_totals > 0, sums / plot_totals, 0)
+        rel[species_in_plot < Cluster.info[i, 2L]] <- 0
+        Plot.cluster[, i] <- rel
       }
     }
 
@@ -460,15 +455,18 @@ cocktail_cluster <- function(
 
           # Tail: write Plot.cluster
           if (plot_values == "binary") {
+
             Plot.cluster[, j] <- 1
-          } else {
+
+          } else if (plot_values == "rel_cover") {
+
             spp_idx <- which(Cluster.species[j, ] > 0L)
             cov_block <- vm_raw[, spp_idx, drop = FALSE]
             sums <- if (length(spp_idx)) rowSums(cov_block, na.rm = TRUE) else rep(0, N)
-            # tail uses m = 1 convention
             species_in_plot_tail <- as.integer(Matrix::rowSums(X0[, spp_idx, drop = FALSE]))
-            sums[species_in_plot_tail < 1L] <- 0
-            Plot.cluster[, j] <- sums
+            rel <- ifelse(plot_totals > 0, sums / plot_totals, 0)
+            rel[species_in_plot_tail < 1L] <- 0
+            Plot.cluster[, j] <- rel
           }
 
           X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0, sparse = TRUE))
