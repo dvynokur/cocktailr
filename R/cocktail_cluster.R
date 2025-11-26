@@ -15,6 +15,8 @@
 #'   via `plot_values = "rel_cover"`; relative cover is defined as
 #'   (sum of cluster species covers per plot) / (total cover of the plot),
 #'   and values are zeroed for plots not meeting the m-threshold (cluster membership).
+#' - Optionally computes **species–cluster association coefficients** (`Species.cluster.phi`),
+#'   a species × nodes matrix of \eqn{\phi} between species presence and node membership.
 #'
 #' @param vegmatrix A matrix or data frame with **plots in rows** and **species in columns**.
 #'   This is used twice:
@@ -23,25 +25,34 @@
 #'       relative cover when `plot_values = "rel_cover"`.
 #' @param progress  Logical; show a text progress bar (default `TRUE`).
 #' @param plot_values Character; one of `c("binary", "rel_cover")`.
-#'   - `"binary"` (default): `Plot.cluster` stores 0/1 plot membership per merge,
-#'     identical to the original behavior.
+#'   - `"binary"` (default): `Plot.cluster` stores 0/1 plot membership per merge.
 #'   - `"rel_cover"`: `Plot.cluster` stores the **relative cover** per plot and merge:
 #'       sum of covers over the cluster’s species divided by the total cover of the plot,
 #'       but **only** for plots that meet the current merge’s m-threshold (membership);
 #'       non-member plots or plots with zero total cover are set to 0.
+#' @param species_cluster_phi Logical; if `TRUE`, compute and return
+#'   `Species.cluster.phi`, a species × nodes matrix of \eqn{\phi} association
+#'   coefficients between species presence (from binarized `vegmatrix`) and node
+#'   membership (from `Plot.cluster > 0`). Default `FALSE` to avoid the extra
+#'   computation and memory cost.
 #'
 #' @return
 #' A list of class `"cocktail"` with:
 #' \itemize{
-#'   \item `Cluster.species` — integer matrix (n_merges × n_species): species membership per merge.
-#'   \item `Cluster.merged`  — integer matrix (n_merges × 2): left/right children per merge
-#'         (negative = original species index; positive = earlier merge index).
-#'   \item `Cluster.height`  — numeric vector length n_merges: phi at each merge.
-#'   \item `Plot.cluster`    — matrix (n_plots × n_merges): plot values per merge.
-#'         It is **integer 0/1** when `plot_values = "binary"` and **numeric**
-#'         relative cover when `plot_values = "rel_cover"`.
-#'   \item `species`         — character vector of species names kept after cleaning.
-#'   \item `plots`           — character vector of plot names.
+#'   \item `Cluster.species`       — integer matrix (n_merges × n_species): species membership per merge.
+#'   \item `Cluster.info`          — integer matrix (n_merges × 2): columns `k` (cluster size) and `m` (threshold).
+#'   \item `Plot.cluster`          — matrix (n_plots × n_merges): plot values per merge
+#'                                   (0/1 for `"binary"`, relative cover for `"rel_cover"`).
+#'   \item `Cluster.merged`        — integer matrix (n_merges × 2): left/right children per merge
+#'                                   (negative = original species index; positive = earlier merge index).
+#'   \item `Cluster.height`        — numeric vector length n_merges: phi at each merge.
+#'   \item `Species.cluster.phi`   — (optional) numeric matrix (species × nodes) of \eqn{\phi} association
+#'                                   coefficients between each species and each internal node
+#'                                   (columns named `"c_<node_id>"`), with an attribute
+#'                                   `"group_info"` giving node sizes. `NULL` if
+#'                                   `species_cluster_phi = FALSE`.
+#'   \item `species`               — character vector of species names kept after cleaning.
+#'   \item `plots`                 — character vector of plot names.
 #' }
 #'
 #' @details
@@ -59,8 +70,9 @@
 #'   (e.g., `+, r, 2a`), the function warns and **falls back to `"binary"`** output.
 #'   If values look **ordinal** (e.g., 1..6 / 1..10), the function warns but proceeds
 #'   to compute relative cover, noting that percentage cover is recommended.
-#'
-#' @seealso \code{\link{plot_cocktail}}, \code{\link{cocktail_fuzzy}}, \code{\link{assign_releves}}
+#' - `Species.cluster.phi` is computed from a 2×2 table for every (species,node) pair,
+#'   using species presence (from binarized `vegmatrix`) and node membership
+#'   (from `Plot.cluster > 0`). Invalid or zero denominators yield \eqn{\phi}=0.
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
@@ -68,7 +80,8 @@
 cocktail_cluster <- function(
     vegmatrix,
     progress = TRUE,
-    plot_values = c("binary", "rel_cover")
+    plot_values = c("binary", "rel_cover"),
+    species_cluster_phi = FALSE
 ) {
   plot_values <- match.arg(plot_values)
 
@@ -77,7 +90,7 @@ cocktail_cluster <- function(
     stop("vegmatrix must be a matrix or data.frame with plots in rows and species in columns.")
   }
 
-  # Keep original covers for relative cover output
+  # Keep original covers for relative cover output and species-cluster phi
   vm_raw <- as.matrix(vegmatrix)
   vm_raw[is.na(vm_raw)] <- 0
 
@@ -484,14 +497,66 @@ cocktail_cluster <- function(
     if (i >= (n - 1L)) break
   }
 
+  ## ---- species × node phi matrix (optional species–cluster associations) ----
+  Species.cluster.phi <- NULL
+  if (isTRUE(species_cluster_phi)) {
+    n_nodes <- nrow(Cluster.species)
+
+    # species presence (plots × species, 0/1)
+    X_f <- (vm_raw > 0)
+    storage.mode(X_f) <- "double"
+
+    # node membership (plots × nodes, 0/1), from Plot.cluster
+    G_f <- (Plot.cluster > 0)
+    storage.mode(G_f) <- "double"
+
+    if (nrow(X_f) != nrow(G_f) || ncol(G_f) != n_nodes) {
+      stop("Internal mismatch computing Species.cluster.phi: dimensions do not align.")
+    }
+
+    Nf  <- nrow(X_f)
+    nsp <- ncol(X_f)
+
+    # co-occurrences
+    a_sc <- crossprod(X_f, G_f)   # nsp × n_nodes
+
+    # margins
+    p_sc  <- colSums(X_f)         # species totals
+    g1_sc <- colSums(G_f)         # node sizes
+
+    # broadcasted
+    b_sc <- matrix(p_sc,  nrow = nsp, ncol = n_nodes) - a_sc
+    c_sc <- matrix(g1_sc, nrow = nsp, ncol = n_nodes, byrow = TRUE) - a_sc
+    d_sc <- (Nf - matrix(g1_sc, nrow = nsp, ncol = n_nodes, byrow = TRUE)) - b_sc
+
+    den_sc <- sqrt((a_sc + c_sc) * (b_sc + d_sc) * (a_sc + b_sc) * (c_sc + d_sc))
+    phi_sc <- (a_sc * d_sc - b_sc * c_sc) / den_sc
+    phi_sc[!is.finite(den_sc) | den_sc <= 0] <- 0
+
+    colnames(phi_sc) <- paste0("c_", seq_len(n_nodes))
+    rownames(phi_sc) <- species
+
+    GI <- data.frame(
+      col        = colnames(phi_sc),
+      cluster_id = seq_len(n_nodes),
+      n_plots    = as.numeric(g1_sc),
+      stringsAsFactors = FALSE
+    )
+    attr(phi_sc, "group_info") <- GI
+
+    Species.cluster.phi <- phi_sc
+  }
+
+  ## ---- result ----
   res <- list(
-    Cluster.species = Cluster.species,
-    Cluster.info    = Cluster.info,
-    Plot.cluster    = Plot.cluster,
-    Cluster.merged  = Cluster.merged,
-    Cluster.height  = Cluster.height,
-    species         = species,
-    plots           = plots
+    Cluster.species      = Cluster.species,
+    Cluster.info         = Cluster.info,
+    Plot.cluster         = Plot.cluster,
+    Cluster.merged       = Cluster.merged,
+    Cluster.height       = Cluster.height,
+    Species.cluster.phi  = Species.cluster.phi,
+    species              = species,
+    plots                = plots
   )
   class(res) <- c("cocktail", class(res))
   res
