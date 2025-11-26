@@ -7,7 +7,8 @@
 cocktail_cluster(
   vegmatrix,
   progress = TRUE,
-  plot_values = c("binary", "sum_cover")
+  plot_values = c("binary", "rel_cover"),
+  species_cluster_phi = FALSE
 )
 }
 \arguments{
@@ -15,31 +16,42 @@ cocktail_cluster(
 This is used twice:
 (1) it is \strong{binarized} internally to drive the clustering, and
 (2) its \strong{original numeric values} (with \code{NA} treated as 0) are used to compute
-cover sums when \code{plot_values = "sum_cover"}.}
+relative cover when \code{plot_values = "rel_cover"}.}
 
 \item{progress}{Logical; show a text progress bar (default \code{TRUE}).}
 
-\item{plot_values}{Character; one of \code{c("binary", "sum_cover")}.
+\item{plot_values}{Character; one of \code{c("binary", "rel_cover")}.
 \itemize{
-\item \code{"binary"} (default): \code{Plot.cluster} stores 0/1 plot membership per merge,
-identical to the original behavior.
-\item \code{"sum_cover"}: \code{Plot.cluster} stores the \strong{sum of covers} (row sums over
-the cluster’s species) per plot and merge, but \strong{only} for plots that meet
-the current merge’s m-threshold (membership); non-member plots are set to 0.
+\item \code{"binary"} (default): \code{Plot.cluster} stores 0/1 plot membership per merge.
+\item \code{"rel_cover"}: \code{Plot.cluster} stores the \strong{relative cover} per plot and merge:
+sum of covers over the cluster’s species divided by the total cover of the plot,
+but \strong{only} for plots that meet the current merge’s m-threshold (membership);
+non-member plots or plots with zero total cover are set to 0.
 }}
+
+\item{species_cluster_phi}{Logical; if \code{TRUE}, compute and return
+\code{Species.cluster.phi}, a species × nodes matrix of \eqn{\phi} association
+coefficients between species presence (from binarized \code{vegmatrix}) and node
+membership (from \code{Plot.cluster > 0}). Default \code{FALSE} to avoid the extra
+computation and memory cost.}
 }
 \value{
 A list of class \code{"cocktail"} with:
 \itemize{
-\item \code{Cluster.species} — integer matrix (n_merges × n_species): species membership per merge.
-\item \code{Cluster.merged}  — integer matrix (n_merges × 2): left/right children per merge
+\item \code{Cluster.species}       — integer matrix (n_merges × n_species): species membership per merge.
+\item \code{Cluster.info}          — integer matrix (n_merges × 2): columns \code{k} (cluster size) and \code{m} (threshold).
+\item \code{Plot.cluster}          — \strong{\code{dgCMatrix}} (n_plots × n_merges): plot values per merge
+(0/1 for \code{"binary"}, relative cover for \code{"rel_cover"}).
+\item \code{Cluster.merged}        — integer matrix (n_merges × 2): left/right children per merge
 (negative = original species index; positive = earlier merge index).
-\item \code{Cluster.height}  — numeric vector length n_merges: phi at each merge.
-\item \code{Plot.cluster}    — matrix (n_plots × n_merges): plot values per merge.
-It is \strong{integer 0/1} when \code{plot_values = "binary"} and \strong{numeric}
-cover sums when \code{plot_values = "sum_cover"}.
-\item \code{species}         — character vector of species names kept after cleaning.
-\item \code{plots}           — character vector of plot names.
+\item \code{Cluster.height}        — numeric vector length n_merges: phi at each merge.
+\item \code{Species.cluster.phi}   — (optional) numeric matrix (species × nodes) of \eqn{\phi} association
+coefficients between each species and each internal node
+(columns named \code{"c_<node_id>"}), with an attribute
+\code{"group_info"} giving node sizes. \code{NULL} if
+\code{species_cluster_phi = FALSE}.
+\item \code{species}               — character vector of species names kept after cleaning.
+\item \code{plots}                 — character vector of plot names.
 }
 }
 \description{
@@ -52,9 +64,17 @@ crossproduct for speed and exactness.
 \item Uses a \strong{fixed, reproducible tie order}: when several pairs share the same
 maximum phi at a step, they are processed in the same order that R fills the
 lower-triangular distance matrix (scan by increasing column, then row).
-\item Optionally writes \strong{cover sums} into \code{Plot.cluster} instead of binary membership
-via \code{plot_values = "sum_cover"}; sums are zeroed for plots not meeting the
-m-threshold (cluster membership).
+\item Stores \code{Plot.cluster} as a \strong{sparse \code{dgCMatrix}} (from the \strong{Matrix} package),
+containing either binary membership or relative cover per plot and node.
+If you need a base R matrix, convert manually, e.g.:
+\code{plot_cluster_dense <- as.matrix(res$Plot.cluster)}.
+\item Optionally writes \strong{relative cover} into \code{Plot.cluster} instead of binary membership
+via \code{plot_values = "rel_cover"}; relative cover is defined as
+(sum of cluster species covers per plot) / (total cover of the plot),
+and values are zeroed for plots not meeting the m-threshold (cluster membership).
+\item Optionally computes \strong{species–cluster association coefficients} (\code{Species.cluster.phi}),
+a species × nodes matrix of \eqn{\phi} between species presence and node membership,
+using sparse crossproducts internally.
 }
 }
 \details{
@@ -63,34 +83,21 @@ Fast Cocktail agglomeration for a \strong{plots × species} table.
 \item Binarization and removal of empty species happen internally and only affect the
 set of columns that contribute to clustering. All returned components are aligned
 to the species that had at least one presence after cleaning.
-\item For \code{plot_values = "sum_cover"}, cover sums are computed from the \strong{original}
-\code{vegmatrix} values (after converting \code{NA} to 0), restricted to the species that
-belong to the current cluster at each merge, and \strong{zeroed} for plots that do not
-meet the m-threshold (i.e., are not assigned to that merge).
+\item For \code{plot_values = "rel_cover"}, relative cover is computed from the \strong{original}
+\code{vegmatrix} values (after converting \code{NA} to 0). For each merge, the function:
+(1) identifies the cluster’s species, (2) sums their covers per plot,
+(3) divides by the total cover in that plot (sum over all species), and
+(4) \strong{zeroes} values for plots that do not meet the m-threshold
+(i.e., are not assigned to that merge) or have zero total cover.
 \item Basic checks on the cover scale:
 if input values appear \strong{binary} (only 0/1) or contain \strong{non-numeric codes}
 (e.g., \verb{+, r, 2a}), the function warns and \strong{falls back to \code{"binary"}} output.
 If values look \strong{ordinal} (e.g., 1..6 / 1..10), the function warns but proceeds
-to compute sums.
+to compute relative cover, noting that percentage cover is recommended.
+\item \code{Species.cluster.phi} is computed from a 2×2 table for every (species,node) pair,
+using species presence (from binarized \code{vegmatrix}) and node membership
+(from \code{Plot.cluster > 0}). Sparse crossproducts (\code{Matrix::crossprod}) are used
+to obtain co-occurrence counts efficiently; invalid or zero denominators yield
+\eqn{\phi}=0.
 }
-}
-\examples{
-# Toy example
-vm <- matrix(c(1,0,1,
-               0,1,0,
-               1,1,0),
-             nrow = 3, byrow = TRUE,
-             dimnames = list(paste0("plot", 1:3),
-                             c("sp1","sp2","sp3")))
-
-# Binary membership (as before)
-res_bin <- cocktail_cluster(vm, progress = FALSE, plot_values = "binary")
-names(res_bin)
-
-# Sum of covers (here numerically same as binary, but works with \% covers)
-res_sum <- cocktail_cluster(vm, progress = FALSE, plot_values = "sum_cover")
-
-}
-\seealso{
-\code{\link{plot_cocktail}}, \code{\link{cocktail_fuzzy}}, \code{\link{assign_releves}}
 }
