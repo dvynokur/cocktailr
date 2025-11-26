@@ -11,12 +11,17 @@
 #' - Uses a **fixed, reproducible tie order**: when several pairs share the same
 #'   maximum phi at a step, they are processed in the same order that R fills the
 #'   lower-triangular distance matrix (scan by increasing column, then row).
+#' - Stores `Plot.cluster` as a **sparse `dgCMatrix`** (from the **Matrix** package),
+#'   containing either binary membership or relative cover per plot and node.
+#'   If you need a base R matrix, convert manually, e.g.:
+#'   `plot_cluster_dense <- as.matrix(res$Plot.cluster)`.
 #' - Optionally writes **relative cover** into `Plot.cluster` instead of binary membership
 #'   via `plot_values = "rel_cover"`; relative cover is defined as
 #'   (sum of cluster species covers per plot) / (total cover of the plot),
 #'   and values are zeroed for plots not meeting the m-threshold (cluster membership).
 #' - Optionally computes **species–cluster association coefficients** (`Species.cluster.phi`),
-#'   a species × nodes matrix of \eqn{\phi} between species presence and node membership.
+#'   a species × nodes matrix of \eqn{\phi} between species presence and node membership,
+#'   using sparse crossproducts internally.
 #'
 #' @param vegmatrix A matrix or data frame with **plots in rows** and **species in columns**.
 #'   This is used twice:
@@ -41,7 +46,7 @@
 #' \itemize{
 #'   \item `Cluster.species`       — integer matrix (n_merges × n_species): species membership per merge.
 #'   \item `Cluster.info`          — integer matrix (n_merges × 2): columns `k` (cluster size) and `m` (threshold).
-#'   \item `Plot.cluster`          — matrix (n_plots × n_merges): plot values per merge
+#'   \item `Plot.cluster`          — **`dgCMatrix`** (n_plots × n_merges): plot values per merge
 #'                                   (0/1 for `"binary"`, relative cover for `"rel_cover"`).
 #'   \item `Cluster.merged`        — integer matrix (n_merges × 2): left/right children per merge
 #'                                   (negative = original species index; positive = earlier merge index).
@@ -72,7 +77,9 @@
 #'   to compute relative cover, noting that percentage cover is recommended.
 #' - `Species.cluster.phi` is computed from a 2×2 table for every (species,node) pair,
 #'   using species presence (from binarized `vegmatrix`) and node membership
-#'   (from `Plot.cluster > 0`). Invalid or zero denominators yield \eqn{\phi}=0.
+#'   (from `Plot.cluster > 0`). Sparse crossproducts (`Matrix::crossprod`) are used
+#'   to obtain co-occurrence counts efficiently; invalid or zero denominators yield
+#'   \eqn{\phi}=0.
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
@@ -293,8 +300,10 @@ cocktail_cluster <- function(
   Cluster.species <- matrix(0L, n - 1L, n, dimnames = list(NULL, species))
   Cluster.info    <- matrix(0L, n - 1L, 2L,
                             dimnames = list(as.character(seq_len(n - 1L)), c("k","m")))
-  # numeric so it can hold relative cover when requested
-  Plot.cluster    <- matrix(0, N, n - 1L, dimnames = list(plots, NULL))
+  # Plot.cluster as sparse dgCMatrix
+  Plot.cluster    <- Matrix::Matrix(0, nrow = N, ncol = n - 1L,
+                                    sparse = TRUE,
+                                    dimnames = list(plots, NULL))
   Cluster.merged  <- matrix(0L, n - 1L, 2L)
   Cluster.height  <- array(0, n - 1L)
 
@@ -502,43 +511,46 @@ cocktail_cluster <- function(
   if (isTRUE(species_cluster_phi)) {
     n_nodes <- nrow(Cluster.species)
 
-    # species presence (plots × species, 0/1)
-    X_f <- (vm_raw > 0)
+    # species presence (plots × species, 0/1) as sparse
+    X_f <- Matrix::Matrix(vm_raw > 0, sparse = TRUE)
     storage.mode(X_f) <- "double"
 
-    # node membership (plots × nodes, 0/1), from Plot.cluster
-    G_f <- (Plot.cluster > 0)
+    # node membership (plots × nodes, 0/1), from Plot.cluster, as sparse
+    G_f <- Matrix::Matrix(Plot.cluster > 0, sparse = TRUE)
     storage.mode(G_f) <- "double"
 
     if (nrow(X_f) != nrow(G_f) || ncol(G_f) != n_nodes) {
       stop("Internal mismatch computing Species.cluster.phi: dimensions do not align.")
     }
 
-    Nf  <- nrow(X_f)
-    nsp <- ncol(X_f)
+    # co-occurrences via sparse crossprod
+    a_sc <- Matrix::crossprod(X_f, G_f)   # nsp × n_nodes (Matrix)
+    a_sc <- as.matrix(a_sc)               # dense numeric for phi algebra
 
-    # co-occurrences
-    a_sc <- crossprod(X_f, G_f)   # nsp × n_nodes
+    # margins (sparse-aware)
+    p_sc  <- Matrix::colSums(X_f)         # species totals
+    g1_sc <- Matrix::colSums(G_f)         # node sizes
 
-    # margins
-    p_sc  <- colSums(X_f)         # species totals
-    g1_sc <- colSums(G_f)         # node sizes
+    nsp    <- length(p_sc)
+    Nf     <- nrow(X_f)
+    n_nodes_check <- length(g1_sc)
+    stopifnot(nsp == nrow(a_sc), n_nodes_check == ncol(a_sc))
 
     # broadcasted
-    b_sc <- matrix(p_sc,  nrow = nsp, ncol = n_nodes) - a_sc
-    c_sc <- matrix(g1_sc, nrow = nsp, ncol = n_nodes, byrow = TRUE) - a_sc
-    d_sc <- (Nf - matrix(g1_sc, nrow = nsp, ncol = n_nodes, byrow = TRUE)) - b_sc
+    b_sc <- matrix(p_sc,  nrow = nsp, ncol = n_nodes_check) - a_sc
+    c_sc <- matrix(g1_sc, nrow = nsp, ncol = n_nodes_check, byrow = TRUE) - a_sc
+    d_sc <- (Nf - matrix(g1_sc, nrow = nsp, ncol = n_nodes_check, byrow = TRUE)) - b_sc
 
     den_sc <- sqrt((a_sc + c_sc) * (b_sc + d_sc) * (a_sc + b_sc) * (c_sc + d_sc))
     phi_sc <- (a_sc * d_sc - b_sc * c_sc) / den_sc
     phi_sc[!is.finite(den_sc) | den_sc <= 0] <- 0
 
-    colnames(phi_sc) <- paste0("c_", seq_len(n_nodes))
+    colnames(phi_sc) <- paste0("c_", seq_len(n_nodes_check))
     rownames(phi_sc) <- species
 
     GI <- data.frame(
       col        = colnames(phi_sc),
-      cluster_id = seq_len(n_nodes),
+      cluster_id = seq_len(n_nodes_check),
       n_plots    = as.numeric(g1_sc),
       stringsAsFactors = FALSE
     )
