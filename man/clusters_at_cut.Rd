@@ -2,37 +2,48 @@
 % Please edit documentation in R/clusters_at_cut.R
 \name{clusters_at_cut}
 \alias{clusters_at_cut}
-\title{Parent cluster labels at a phi cut}
+\title{Parent Cocktail clusters at a phi cut}
 \usage{
 clusters_at_cut(x, phi, as_labels = TRUE)
 }
 \arguments{
-\item{x}{A Cocktail object (list with \code{Cluster.merged} and \code{Cluster.height});
-alternatively, a numeric matrix produced by \code{cocktail_fuzzy()} \strong{that carries}
-these two components as attributes (i.e., \code{attr(x, "Cluster.merged")} and
-\code{attr(x, "Cluster.height")}).}
+\item{x}{A Cocktail object (list) with components
+\code{Cluster.merged} and \code{Cluster.height} as produced by
+\code{\link{cocktail_cluster}()}.}
 
 \item{phi}{Numeric scalar between 0 and 1 specifying the \eqn{\phi} cut level.}
 
-\item{as_labels}{Logical; if \code{TRUE} (default) return character labels like
-\code{"c_2127"}. If \code{FALSE}, return integer node IDs.}
+\item{as_labels}{Logical; if \code{TRUE} (default) return character labels
+like \code{"c_12"}. If \code{FALSE}, return integer node IDs.}
 }
 \value{
 A vector of cluster identifiers (character when \code{as_labels = TRUE},
 otherwise integers), sorted increasingly by node ID. May be length zero if
-no parent nodes exist at the requested cut.
+no nodes exist at the requested cut.
 }
 \description{
-Return the \strong{topmost} Cocktail nodes whose height is at least the given
-\eqn{\phi} cut. “Topmost” means nodes at or above the cut that do \strong{not}
-have an ancestor also at or above the cut.
+Return the Cocktail nodes that form the \strong{cluster partition} at a given
+\eqn{\phi} cut. These are the nodes with height \eqn{\ge \phi} that are
+\strong{not contained inside any other node} at or above the same cut.
+
+In other words, if you slice the Cocktail tree horizontally at height
+\code{phi}, the function returns exactly the nodes whose branches
+intersect that cut line.
 }
 \details{
-This function finds all nodes with \code{Cluster.height >= phi}, removes any that
-are descendants of another node that also meets the cut, and returns the
-remaining parent nodes. When a \eqn{\phi} matrix from \code{cocktail_fuzzy()} is
-supplied, the function reads the tree from its attributes.
+The function:
+\enumerate{
+\item Finds all nodes whose height satisfies \code{Cluster.height >= phi}.
+\item Looks at their children in \code{Cluster.merged}.
+\item Removes any node that appears as a child of another node that also
+meets the cut.
+}
+
+The remaining nodes are those that “touch” the cut line without being
+strictly inside another selected node. They correspond to the natural set
+of groups at that \eqn{\phi} level and are the same nodes used by functions
+like \code{\link{assign_releves}()} when only \code{phi_cut} is specified.
 }
 \seealso{
-\code{assign_releves()}, \code{species_in_clusters()}, \code{cocktail_fuzzy()}
+\code{\link{assign_releves}}, \code{\link{cocktail_cluster}}
 }
