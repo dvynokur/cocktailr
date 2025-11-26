@@ -2,117 +2,123 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign relevés (plots) to Cocktail groups (topology, covers, fuzzy)}
+\title{Assign relevés (plots) to Cocktail groups using relative cover and species–cluster φ}
 \usage{
 assign_releves(
   x,
-  vegmatrix = NULL,
-  strategy = c("topology", "topology_cover", "topology_fuzzy", "fuzzy"),
+  strategy = c("num_sp", "cover", "phi_topo", "phi_cover"),
   phi_cut = 0.3,
   clusters = NULL,
-  cover_transform = c("sqrt", "none", "log1p"),
-  min_cover = 0,
-  phi_fuzzy = NULL,
-  min_group_size = 1
+  min_phi = 0.2,
+  min_group_size = 1L
 )
 }
 \arguments{
 \item{x}{A Cocktail object (list) with components
-\code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height}, and \code{Plot.cluster}
-(e.g., from \code{cocktail_cluster()}).}
+\code{Cluster.species}, \code{Cluster.merged},
+\code{Cluster.height}, and \code{Plot.cluster}, e.g. from
+\code{\link{cocktail_cluster}()}. For strategies
+\code{"phi_topo"} and \code{"phi_cover"}, the object must also
+contain \code{Species.cluster.phi}, a matrix of Option A φ values
+(species × nodes).}
 
-\item{vegmatrix}{Optional numeric matrix/data.frame of \strong{covers} with plots
-in rows and species in columns. Needed for \code{"topology_cover"},
-\code{"topology_fuzzy"}, and \code{"fuzzy"}. Missing values are treated as 0.}
+\item{strategy}{Character, one of
+\code{c("num_sp","cover","phi_topo","phi_cover")}.}
 
-\item{strategy}{One of \code{c("topology","topology_cover","topology_fuzzy","fuzzy")}.}
+\item{phi_cut}{Numeric in (0,1). Height cut used to choose \strong{parent
+clusters} (unless \code{clusters} is supplied). Parent clusters at
+a cut are the topmost nodes with height ≥ \code{phi_cut} that do
+not have an ancestor also at/above the cut.}
 
-\item{phi_cut}{Numeric in (0,1). Height cut used to choose \strong{parent clusters}
-(unless \code{clusters} is supplied).}
-
-\item{clusters}{Optional selection of clusters \strong{instead of} \code{phi_cut}.
+\item{clusters}{Optional selection of clusters \strong{instead of}
+\code{phi_cut}.
 \itemize{
-\item If a \strong{vector} of labels/IDs (e.g., \code{c("c_123","c_456")} or \code{c(123,456)}),
+\item If a \strong{vector} of node labels/IDs
+(e.g., \code{c("c_123","c_456")} or \code{c(123,456)}),
 each element forms a separate group.
-\item If a \strong{list}, each element is a \strong{union} (group) of several nodes,
-e.g., \code{list(c("c_123","c_234"), 567)}.
-Within each group, if both an \strong{ancestor} and its \strong{descendant} are
-present, the function \strong{keeps only the topmost} (ancestor) to avoid
-double-counting.
-}}
+\item If a \strong{list}, each element is a \strong{union group} of several
+nodes, e.g., \code{list(c("c_123","c_234"), 567)}.
+}
+Within each group, if both an ancestor and its descendant are
+present, only the \strong{topmost} (ancestor) is kept to avoid
+double-counting.}
 
-\item{cover_transform}{Cover transform: \code{c("sqrt","none","log1p")}. Default \code{"sqrt"}.}
+\item{min_phi}{Numeric in (0,1). Minimum φ value for
+\code{strategy = "phi_cover"}: species–group φ < \code{min_phi} are
+set to 0 before computing group φ-strength. Default 0.2. Ignored
+for other strategies.}
 
-\item{min_cover}{Numeric percent in (0,100). A plot–group pair is \strong{ineligible}
-unless the \strong{raw (pre-transform)} sum of the group’s species in the plot is
-at least this value. Default 0.}
-
-\item{phi_fuzzy}{Fidelity threshold for \code{"fuzzy"} (defaults to \code{phi_cut}).
-Species with \eqn{\phi <} \code{phi_fuzzy} are dropped for that group.}
-
-\item{min_group_size}{Integer ≥ 1. After assignment, any group with fewer than
-this many plots is relabeled \code{"not assigned"}. Default 1 (no collapsing).}
+\item{min_group_size}{Integer ≥ 1. After assignment, any group with
+fewer than this many plots is relabeled \code{"not assigned"}. Default 1
+(no collapsing).}
 }
 \value{
-\itemize{
-\item For \code{"topology"}: character vector of assignments \strong{or} a binary membership
-matrix (plots × groups) if multiple memberships occur.
-\item For the other strategies: a character vector of assigned group labels
-(or \code{"not assigned"}).
-The object carries an attribute \code{"details"} with inputs and diagnostics
-(e.g., scores matrix, groups used, species sets, etc.).
-}
+A named character vector of length equal to the number of plots, with
+values equal to group labels (e.g. \code{"g_12"}, \code{"g_5_7"}) or
+\code{"not assigned"}. An attribute \code{"details"} is attached
+containing the strategy, groups used, scoring summaries, and the
+arguments used.
 }
 \description{
-Assign plots to groups derived from a Cocktail tree in four ways:
+Assign plots to groups derived from a Cocktail tree using only the
+information stored in a fitted Cocktail object:
+\code{x$Plot.cluster} (relative covers per plot × node),
+\code{x$Cluster.species} (topological species per node),
+and optionally \code{x$Species.cluster.phi} (species–cluster φ).
+
+Four strategies are supported:
 \itemize{
-\item \strong{"topology"} — Use \emph{topological} membership from \code{x$Plot.cluster} at a
-given \code{phi_cut} (or user-specified \code{clusters}). A plot can be a member of
-\strong{0, 1, or several} groups. If \strong{every} plot belongs to \strong{exactly one}
-group, the function returns a \strong{character vector} of assignments. If \strong{any}
-plot has \strong{multiple} memberships, the function returns a \strong{binary matrix}
-(plots × groups) with 0/1 membership flags.
-\item \strong{"topology_cover"} — Like \emph{topology}, but when \code{vegmatrix} contains
-cover values, score each plot–group pair by the \strong{sum of transformed covers}
-across the group’s \emph{topological} species (i.e., species that define that
-parent node). Plots are \strong{eligible} only if they are topological members of
-the group (\code{x$Plot.cluster}) \strong{and} their \strong{raw (pre-transform)} cover sum
-for the group's species is at least \code{min_cover}. The \strong{unique maximum} score
-(if any) wins; otherwise \code{"not assigned"}.
-\item \strong{"topology_fuzzy"} — Compute \strong{direct} (Option A) \eqn{\phi} between each
-species and \strong{each selected group} (the group’s plot-membership is the
-OR-union of its parent nodes’ memberships). Then \strong{mask} these \eqn{\phi}
-weights so that only the group’s \emph{topological species} (from the Cocktail
-node) can contribute. Plot scores are (transformed covers) × (masked \eqn{\phi}).
-Eligibility by \code{min_cover} uses the group’s \emph{topological} species. Unique
-maximum rule as above.
-\item \strong{"fuzzy"} — Compute \strong{direct} (Option A) \eqn{\phi} for species against
-\strong{each selected group}, then \strong{filter species by fidelity}: keep species
-with \eqn{\phi \ge} \code{phi_fuzzy} for that group (\code{phi_fuzzy} defaults to
-\code{phi_cut}). Plot scores are (transformed covers) × (filtered \eqn{\phi}).
-Eligibility by \code{min_cover} uses the \strong{filtered species set} per group.
-Unique maximum rule as above.
+\item \strong{"num_sp"} — For each group, count its \emph{topological} species
+(from \code{x$Cluster.species}). For any plot, the eligible groups
+are those to which the plot belongs (non-zero membership in
+\code{x$Plot.cluster}, or OR-union for union groups). The winner is
+the group with the \strong{largest number of topological species} among
+those eligible (ties → \code{"not assigned"}).
+\item \strong{"cover"} — For each group, the score for a plot is the
+\strong{sum of relative covers} from \code{x$Plot.cluster} across all
+nodes in that group (for single-node groups this is just the
+relative cover of that node). The winner is the group with
+\strong{highest relative cover} for that plot (ties → \code{"not assigned"}).
+\item \strong{"phi_topo"} — Requires \code{x$Species.cluster.phi}. For each
+group, build a \strong{topological species set} (union of its nodes'
+topological species) and a \strong{species–group φ} by taking, for each
+species, the \strong{maximum φ} across the group's nodes (negative φ are
+set to 0). The group-level “φ-strength” is the \strong{sum of these φ}
+over its topological species. For a plot, eligible groups are those
+to which the plot belongs; the winner has the \strong{largest φ-strength}
+among eligible groups.
+\item \strong{"phi_cover"} — Requires \code{x$Species.cluster.phi}. As in
+\code{"phi_topo"}, compute species–group φ (max over nodes in group),
+but then \strong{threshold} by \code{min_phi}: φ < \code{min_phi} are
+set to 0. For each group, define its φ-strength as the sum of the
+remaining φ over its topological species. The score for a plot and
+group is then \strong{relative cover × φ-strength}. The winner is the
+group with the highest such score among eligible groups.
 }
+
+In all strategies, a plot is considered \strong{eligible} for a group if
+it has any non-zero membership for the group's nodes in
+\code{x$Plot.cluster} (OR-union for union groups). Per-plot scores
+are compared only across eligible groups. Ties or all-NA scores yield
+\code{"not assigned"}.
 }
 \details{
-\strong{Parent clusters} at a cut are the “topmost” nodes with height ≥ \code{phi_cut}
-that \strong{do not} have an ancestor also at/above the cut. If \code{clusters} is not
-provided, each parent cluster at the cut forms \strong{one group}. If \code{clusters}
-is a \strong{list}, each element defines a \strong{union} (OR) of several nodes; plot
-membership for that group is the OR across those nodes’ memberships in
-\code{x$Plot.cluster}, and \strong{species sets for topology} are the \strong{unions} of the
-nodes’ topological species (\code{x$Cluster.species} at those node IDs).
+\strong{Groups and union groups.}
+Groups are defined either by \code{phi_cut} (parent nodes at that cut)
+or explicitly by \code{clusters}. When \code{clusters} is a list, each
+element is a union group of several nodes. Plot membership in a union
+group is taken as the OR-union of membership over its nodes
+(non-zero entries in \code{x$Plot.cluster}); the topological species
+of a union group are the union of the nodes' topological species
+(rows of \code{x$Cluster.species}).
 
-\strong{Fuzzy (Option A, direct):} for species–group association we \emph{recompute}
-\eqn{\phi} directly against the \strong{group} membership vector (the OR-union
-of its components), i.e., using the 2×2 counts \eqn{a,b,c,d} per species vs.
-the group’s plot membership. This yields diagnostics for the \strong{union as a
-single unit} (statistically exact for the redefined group).
-
-\strong{Topology output shape:} In \code{"topology"}, a plot can belong to multiple
-groups. If \strong{all} plots have exactly one membership, a \strong{vector} of labels
-is returned; otherwise a \strong{binary matrix} (plots × groups) is returned.
+\strong{Species–group φ for union groups.}
+For \code{"phi_topo"} and \code{"phi_cover"}, species–group φ for a
+union group is derived from \code{x$Species.cluster.phi} by taking the
+maximum φ over the group's nodes for each species. Negative φ values
+are set to 0 before aggregation. For \code{"phi_cover"}, φ-values
+below \code{min_phi} are additionally set to 0.
 }
 \seealso{
-\code{\link{clusters_at_cut}}
+\code{\link{cocktail_cluster}}, \code{\link{clusters_at_cut}}
 }
