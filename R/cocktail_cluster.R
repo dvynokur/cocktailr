@@ -511,13 +511,10 @@ cocktail_cluster <- function(
   if (isTRUE(species_cluster_phi)) {
     n_nodes <- nrow(Cluster.species)
 
-    # species presence (plots × species, 0/1) as sparse
-    X_f <- Matrix::Matrix(vm_raw > 0, sparse = TRUE)
-    storage.mode(X_f) <- "double"
-
-    # node membership (plots × nodes, 0/1), from Plot.cluster, as sparse
-    G_f <- Matrix::Matrix(Plot.cluster > 0, sparse = TRUE)
-    storage.mode(G_f) <- "double"
+    # species presence (plots × species, 0/1) as numeric sparse (dgCMatrix)
+    X_f <- Matrix::Matrix((vm_raw > 0) * 1, sparse = TRUE)
+    # node membership (plots × nodes, 0/1) as numeric sparse (dgCMatrix)
+    G_f <- Matrix::Matrix((Plot.cluster > 0) * 1, sparse = TRUE)
 
     if (nrow(X_f) != nrow(G_f) || ncol(G_f) != n_nodes) {
       stop("Internal mismatch computing Species.cluster.phi: dimensions do not align.")
