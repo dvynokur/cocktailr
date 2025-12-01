@@ -2,7 +2,7 @@
 % Please edit documentation in R/cocktail_plot.R
 \name{cocktail_plot}
 \alias{cocktail_plot}
-\title{Plot a Cocktail dendrogram (PDF/PNG or current device)}
+\title{Plot Cocktail dendrogram (PDF/PNG or current device)}
 \usage{
 cocktail_plot(
   x,
@@ -22,41 +22,44 @@ cocktail_plot(
 )
 }
 \arguments{
-\item{x}{A Cocktail object (e.g. from \code{\link[=cocktail_cluster]{cocktail_cluster()}}) with
-components \code{Cluster.species}, \code{Cluster.merged}, and \code{Cluster.height}.
-If \code{x$species} is present it is used for tip labels; otherwise
-\code{colnames(x$Cluster.species)} are used.}
+\item{x}{A Cocktail object (e.g. from \code{cocktail_cluster()}),
+with components \code{Cluster.species}, \code{Cluster.merged},
+and \code{Cluster.height}. If present, \code{x$species} is used
+as the species names; otherwise \code{colnames(Cluster.species)}.}
 
-\item{file}{Optional path to output file.
+\item{file}{Optional path to output. If it ends in:
 \itemize{
-\item If it ends with \code{.pdf}, a multi-page PDF is created.
-\item If it ends with \code{.png}, one or several PNG files are created.
-\item If \code{NULL} or the extension is not \code{.pdf}/\code{.png}, no file is written
-and the plot is drawn on the current device (first page only).
+\item \code{".pdf"} — create a (multi-page) PDF;
+\item \code{".png"} — create one or more PNG files
+(\code{*_page01.png}, \code{*_page02.png}, … if multiple pages);
+\item anything else or \code{NULL} — draw only the first page
+on the current graphics device.
 }}
 
-\item{phi_cut}{Optional numeric in (0,1). If given, parent clusters
-at or above this \eqn{\phi} are highlighted with coloured bands and
-a dashed horizontal cut line at \code{phi_cut} is drawn.}
+\item{phi_cut}{Optional numeric. If given, draw background bands for
+parent clusters with \eqn{\phi \ge \mathrm{phi\_cut}}, and a dashed
+horizontal line at this \eqn{\phi} level across each page.}
 
 \item{label_clusters}{Logical/character. One of:
 \itemize{
-\item \code{FALSE} (default): no node labels;
-\item \code{"all"}: label \strong{every} internal node (merge);
-\item \code{"phi_cut"}: label clusters that intersect the \code{phi_cut} line
-(requires \code{phi_cut} to be non-\code{NULL}).
-Labels are node indices (row numbers of \code{Cluster.species}), shown
-without any \code{"c_"} prefix.
+\item \code{FALSE} — no internal node labels;
+\item \code{"all"} — label every internal node, placing the label
+where the parent branch meets the node (intersection of the
+parent’s vertical leg with the parent’s horizontal level;
+for root nodes, at their own merge height), \emph{plus} an
+additional set of labels at \eqn{\phi = 0} corresponding to
+the \eqn{\phi_\mathrm{cut} = 0} clusters (i.e. the same labels
+as \code{label_clusters = "phi_cut"} with \code{phi_cut = 0});
+\item \code{"phi_cut"} — only label nodes whose vertical branch
+crosses \code{phi_cut} (as in the dashed line).
 }}
 
-\item{cex_species}{Numeric expansion factor for \strong{species (tip) labels}
-on the x-axis.}
+\item{cex_species}{Expansion factor for species (tip) labels on the x-axis.}
 
-\item{cex_clusters}{Numeric expansion factor for \strong{cluster-number labels}
-(node bubbles).}
+\item{cex_clusters}{Expansion factor for cluster-number labels.}
 
-\item{circle_inch}{Radius (inches) of the white/black bubble drawn behind
-cluster labels.}
+\item{circle_inch}{Circle radius (inches) for the white/black bubble
+behind cluster labels.}
 
 \item{page_size}{Integer, number of tips per page. Use
 \code{ncol(x$Cluster.species)} to place all tips on a single page.}
@@ -64,56 +67,29 @@ cluster labels.}
 \item{width_in}{Plot width in inches. If \code{NULL}, a width is chosen
 automatically (capped at 150 inches) based on \code{page_size}.}
 
-\item{height_in}{Plot height in inches (default \code{10}).}
+\item{height_in}{Plot height in inches (default 10).}
 
 \item{alpha_fill, alpha_border}{Numeric alpha levels (0–1) for band fill
-and border, respectively.}
+and border.}
 
-\item{palette}{Color palette name. If it matches one of
-\code{grDevices::hcl.pals()}, colours are taken from
-\code{grDevices::hcl.colors()}. If \code{"rainbow"} (default, case-insensitive),
-colours are taken from \code{grDevices::rainbow()}. Otherwise the
-fallback palette \code{"Set3"} is used.}
+\item{palette}{Color palette name for \code{grDevices::hcl.colors()}
+(e.g., \code{"Set3"}, \code{"Dark2"}, \code{"Paired"}) or \code{"rainbow"}.
+Default \code{"rainbow"}.}
 
-\item{png_res}{Resolution in dpi for PNG output (ignored for PDF).}
+\item{png_res}{Resolution in dpi for PNG output (default 300).}
 }
 \value{
-Invisibly returns \code{NULL}. The side effect is the creation of a PDF/PNG
-on disk (if \code{file} is a supported filename) and/or drawing the plot
-on the active device.
+Invisibly returns \code{NULL}. Produces a plot on the current
+device or writes PDF/PNG files, depending on \code{file}.
 }
 \description{
 Draw a dendrogram-style plot of a fitted Cocktail clustering.
 Species (tips) are arranged left-to-right in the same order used
-by the Cocktail algorithm, and the y-axis shows the \eqn{\phi}
+by the original algorithm, and the y-axis shows the \eqn{\phi}
 height of each merge.
 
-Optionally:
-\itemize{
-\item highlight “parent” clusters at or above a chosen \eqn{\phi} cut
-with coloured bands, and
-\item label internal nodes or only the parent clusters at the cut.
-}
-
-The plot can be:
-\itemize{
-\item written to a \strong{PDF} (multi-page) when \code{file} ends with \code{.pdf},
-\item written to one or several \strong{PNG} files when \code{file} ends with \code{.png}, or
-\item drawn on the current graphics device (e.g. RStudio Plots pane) when
-\code{file} is \code{NULL} or has no recognized extension. In this “interactive”
-mode, only the \strong{first page} is drawn.
-}
-}
-\details{
-Species order is reproduced from the Cocktail implementation by
-sorting the per-tip membership strings derived from \code{x$Cluster.species}.
-
-Large trees are automatically paginated according to \code{page_size}. When
-writing to PDF, all pages go into a single file. When writing to PNG,
-multiple pages are written as \code{base_p01.png}, \code{base_p02.png}, etc.,
-where \code{base} is the filename without the \code{.png} extension.
-
-When \code{file} is \code{NULL} (or has an unrecognized extension), only the
-first page is drawn on the \strong{current} graphics device, which is
-typically the Plots pane in RStudio.
+If \code{file} ends with \code{".pdf"} or \code{".png"}, the plot
+is written to disk. Otherwise (including \code{file = NULL}),
+the first page is drawn on the current graphics device (e.g.,
+the Plots panel in RStudio).
 }

@@ -300,10 +300,11 @@ cocktail_cluster <- function(
   Cluster.species <- matrix(0L, n - 1L, n, dimnames = list(NULL, species))
   Cluster.info    <- matrix(0L, n - 1L, 2L,
                             dimnames = list(as.character(seq_len(n - 1L)), c("k","m")))
-  # Plot.cluster as sparse dgCMatrix
-  Plot.cluster    <- Matrix::Matrix(0, nrow = N, ncol = n - 1L,
-                                    sparse = TRUE,
-                                    dimnames = list(plots, NULL))
+  # Work internally with a *dense* numeric matrix, convert to sparse at the end
+  Plot.cluster_dense <- matrix(
+    0, nrow = N, ncol = n - 1L,
+    dimnames = list(plots, NULL)
+  )
   Cluster.merged  <- matrix(0L, n - 1L, 2L)
   Cluster.height  <- array(0, n - 1L)
 
@@ -408,10 +409,10 @@ cocktail_cluster <- function(
       Exp_plot_freq <- Expected.plot.freq_(spp_idx) * N
       Cluster.info[i, 2L] <- Compare.obs.exp.freq_(Obs_plot_freq, Exp_plot_freq)
 
-      # Fill Plot.cluster per option
+      # Fill Plot.cluster per option (dense matrix)
       if (plot_values == "binary") {
         # 0/1 membership
-        Plot.cluster[species_in_plot >= Cluster.info[i, 2L], i] <- 1
+        Plot.cluster_dense[species_in_plot >= Cluster.info[i, 2L], i] <- 1
 
       } else if (plot_values == "rel_cover") {
         # Relative cover: sum of cluster covers / total cover per plot,
@@ -420,7 +421,7 @@ cocktail_cluster <- function(
         sums <- rowSums(cov_block, na.rm = TRUE)
         rel <- ifelse(plot_totals > 0, sums / plot_totals, 0)
         rel[species_in_plot < Cluster.info[i, 2L]] <- 0
-        Plot.cluster[, i] <- rel
+        Plot.cluster_dense[, i] <- rel
       }
     }
 
@@ -438,7 +439,7 @@ cocktail_cluster <- function(
     drop_cols <- sort(unique(c(e1, e2)))
     if (length(index.e)) {
       newcols <- do.call(cbind, lapply(index.e, function(kid) {
-        Matrix::Matrix(Plot.cluster[, kid] > 0, sparse = TRUE)
+        Matrix::Matrix(Plot.cluster_dense[, kid] > 0, sparse = TRUE)
       }))
       colnames(newcols) <- paste0("c_", index.e)
       X <- cbind(X[, -drop_cols, drop = FALSE], newcols)
@@ -453,7 +454,7 @@ cocktail_cluster <- function(
     }
 
     # φ = 0 tail: once every plot is in the current cluster, finish remaining merges at height 0
-    if (sum(Plot.cluster[, i] > 0) == N) {
+    if (sum(Plot.cluster_dense[, i] > 0) == N) {
       remaining <- (n - 1L) - i
       if (remaining > 0L) {
         for (j in (i + seq_len(remaining))) {
@@ -475,10 +476,10 @@ cocktail_cluster <- function(
           Cluster.species[j, Cluster.species[cl1, ] == 1L] <- 1L
           Cluster.species[j, Cluster.species[cl2, ] == 1L] <- 1L
 
-          # Tail: write Plot.cluster
+          # Tail: write Plot.cluster_dense
           if (plot_values == "binary") {
 
-            Plot.cluster[, j] <- 1
+            Plot.cluster_dense[, j] <- 1
 
           } else if (plot_values == "rel_cover") {
 
@@ -488,10 +489,10 @@ cocktail_cluster <- function(
             species_in_plot_tail <- as.integer(Matrix::rowSums(X0[, spp_idx, drop = FALSE]))
             rel <- ifelse(plot_totals > 0, sums / plot_totals, 0)
             rel[species_in_plot_tail < 1L] <- 0
-            Plot.cluster[, j] <- rel
+            Plot.cluster_dense[, j] <- rel
           }
 
-          X <- cbind(X, Matrix::Matrix(Plot.cluster[, j] > 0, sparse = TRUE))
+          X <- cbind(X, Matrix::Matrix(Plot.cluster_dense[, j] > 0, sparse = TRUE))
           colnames(X)[ncol(X)] <- paste0("c_", j)
           X <- X[, -c(g1, g2), drop = FALSE]
           col_names <- c(col_names, paste0("c_", j))
@@ -505,6 +506,9 @@ cocktail_cluster <- function(
     if (!is.null(pb)) utils::setTxtProgressBar(pb, min(i, n - 1L))
     if (i >= (n - 1L)) break
   }
+
+  ## ---- convert dense Plot.cluster to sparse dgCMatrix ----
+  Plot.cluster <- Matrix::Matrix(Plot.cluster_dense, sparse = TRUE)
 
   ## ---- species × node phi matrix (optional species–cluster associations) ----
   Species.cluster.phi <- NULL
