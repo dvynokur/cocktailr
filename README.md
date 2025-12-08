@@ -237,7 +237,6 @@ D
 hc_nodes <- hclust(D, method = "average")
 
 plot(hc_nodes, main = "Cluster dendrogram (phi-based distance)", cex = 0.7)
-rect.hclust(hc_nodes, k = 2, border = 2)
 ```
 
 <img src="man/figures/README-typical-phi-dist-1.png" width="100%" />
