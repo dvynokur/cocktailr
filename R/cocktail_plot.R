@@ -82,7 +82,6 @@
 #' @importFrom graphics axis par segments mtext rect symbols text
 #' @importFrom grDevices hcl.colors adjustcolor pdf png dev.off hcl.pals rainbow
 #' @export
-
 cocktail_plot <- function(
     x, file = NULL,
     phi_cut        = NULL,
@@ -458,7 +457,12 @@ cocktail_plot <- function(
     x_lim_right <- x_right + x_pad
 
     graphics::par(mar = c(8, 5, 1, 1), xaxs = "i", yaxs = "i")
-    plot(c(x_lim_left, x_lim_right), c(0.1, -1),
+
+    ## adjusted y-limits so lines at y = -1 (phi = 1) are inside the plot
+    y_top    <- 0.1
+    y_bottom <- -1.02
+
+    plot(c(x_lim_left, x_lim_right), c(y_top, y_bottom),
          type = "n", xaxt = "n", yaxt = "n",
          xlab = "", ylab = expression(paste(phi, " coefficient")),
          ...)
