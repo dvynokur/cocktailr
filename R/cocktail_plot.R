@@ -70,6 +70,11 @@
 #'   (e.g., \code{"Set3"}, \code{"Dark2"}, \code{"Paired"}) or \code{"rainbow"}.
 #'   Default \code{"rainbow"}.
 #' @param png_res Resolution in dpi for PNG output (default 300).
+#' @param main Optional plot title for each page. If NULL (default), a standard
+#'   header of the form "Species a-b of n" is drawn.
+#' @param ... Additional graphical arguments passed to the underlying plotting
+#'   functions (e.g. \code{plot()}, \code{par()}), allowing fine-tuning of
+#'   appearance.
 #'
 #' @return Invisibly returns \code{NULL}. Produces a plot on the current
 #'   device or writes PDF/PNG files, depending on \code{file}.

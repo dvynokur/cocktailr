@@ -2,7 +2,7 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign relevés (plots) to Cocktail groups using covers and species–cluster φ}
+\title{Assign releves (plots) to Cocktail groups using covers and species-cluster phi}
 \usage{
 assign_releves(
   x,
@@ -22,7 +22,7 @@ For strategies \code{"phi_topo"}, \code{"phi_cover_topo"},
 \code{"phi_cover"}, and \code{"phi"}, \code{x$Species.cluster.phi}
 should be present; otherwise a fallback is used.}
 
-\item{vegmatrix}{Numeric matrix or data.frame of covers (plots × species).
+\item{vegmatrix}{Numeric matrix or data.frame of covers (plots x species).
 Row names must include the plots in \code{x}; column names must include
 the species used in \code{x}. Missing values are treated as 0.}
 
@@ -30,7 +30,7 @@ the species used in \code{x}. Missing values are treated as 0.}
 \code{c("count","cover","phi_topo","phi_cover_topo","phi_cover","phi")}.}
 
 \item{phi_cut}{Numeric in (0,1). Height cut used to choose parent clusters
-(topmost nodes with height ≥ \code{phi_cut}) when \code{clusters} is not given.}
+(topmost nodes with height >= \code{phi_cut}) when \code{clusters} is not given.}
 
 \item{clusters}{Optional selection of clusters instead of \code{phi_cut}.
 If a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
@@ -39,10 +39,10 @@ of several nodes (OR of their memberships). Within each group, if both
 an ancestor and descendant are present, only the topmost (ancestor) is kept.}
 
 \item{min_phi}{Numeric in (0,1). Minimum \eqn{\phi} for strategies
-\code{"phi_cover"} and \code{"phi"}: species–group \eqn{\phi < \code{min_phi}}
+\code{"phi_cover"} and \code{"phi"}: species-group \eqn{\phi < \code{min_phi}}
 are set to 0. Ignored by other strategies. Default 0.2.}
 
-\item{min_group_size}{Integer ≥ 1. After assignment, any group with fewer
+\item{min_group_size}{Integer >= 1. After assignment, any group with fewer
 than this many plots is relabeled \code{"-"}. Default 1.}
 }
 \value{
@@ -55,10 +55,10 @@ diagnostics (groups used, strategy, counts, etc.).
 \description{
 Assign plots to groups derived from a Cocktail tree using:
 \itemize{
-\item \code{x$Plot.cluster} — cluster membership per plot (non-zero = member);
-\item \code{x$Cluster.species} — topological species per node;
-\item \code{vegmatrix} — per-plot species covers (plots × species);
-\item optionally \code{x$Species.cluster.phi} — species–cluster \eqn{\phi}.
+\item \code{x$Plot.cluster} - cluster membership per plot (non-zero = member);
+\item \code{x$Cluster.species} - topological species per node;
+\item \code{vegmatrix} - per-plot species covers (plots x species);
+\item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}.
 }
 
 Strategies (per plot, per group):
@@ -67,14 +67,14 @@ Strategies (per plot, per group):
 
 \item{\code{"count"}}{
 For each cluster, count how many of its topological species are present
-in the relevé. The winner is the cluster with the largest count.
+in the releve. The winner is the cluster with the largest count.
 If several clusters share the same maximum, the plot is labeled \code{"+"}.
 If no cluster has any species present, the plot gets \code{NA}.
 }
 
 \item{\code{"cover"}}{
 For each cluster, sum the covers of its topological species that are
-present in the relevé. The winner is the cluster with the highest sum.
+present in the releve. The winner is the cluster with the highest sum.
 If there is a tie, use the number of species (as in \code{"count"})
 as a tie-breaker; if still tied, label \code{"+"}. Plots with zero
 cover for all clusters get \code{NA}.
@@ -87,7 +87,7 @@ issues a warning and automatically falls back to \code{strategy = "count"}.
 Requires \code{x$Species.cluster.phi}. For each cluster and species,
 define \eqn{\phi(s,g)} as the maximum of \eqn{\phi} across that group's
 nodes (negatives set to 0). For a given plot, restrict to the cluster's
-topological species that are present in the relevé and sum their
+topological species that are present in the releve and sum their
 \eqn{\phi} values. The winner has the largest such sum. Ties are broken
 first by total cover of these species, then by their species count;
 if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
@@ -97,7 +97,7 @@ if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
 Requires \code{x$Species.cluster.phi}. As in \code{"phi_topo"}, use
 the cluster's topological species only, but score each cluster in a plot
 by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its topological
-species present in the relevé. The winner has the largest score.
+species present in the releve. The winner has the largest score.
 If there is a tie, use the number of these species as a tie-breaker;
 if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
 }
@@ -106,7 +106,7 @@ if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
 Requires \code{x$Species.cluster.phi}. For each cluster and species,
 define \eqn{\phi(s,g)} as above, then keep only species with
 \eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these
-species that are present in the relevé and compute the score:
+species that are present in the releve and compute the score:
 \eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)}. The winner has the largest
 score; ties are broken by total cover of these species, then by their
 species count; if still tied, label \code{"+"}. If all scores are 0,
@@ -117,7 +117,7 @@ the plot gets \code{NA}.
 Requires \code{x$Species.cluster.phi}. For each cluster and species,
 define \eqn{\phi(s,g)} and keep only species with
 \eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these species
-that are present in the relevé and sum their \eqn{\phi} values.
+that are present in the releve and sum their \eqn{\phi} values.
 The winner has the largest sum. Ties are broken by total cover of these
 species, then by their species count; if still tied, label \code{"+"}.
 If all sums are 0, the plot gets \code{NA}.
@@ -125,7 +125,7 @@ If all sums are 0, the plot gets \code{NA}.
 
 }
 
-If a φ-based strategy is requested but \code{x$Species.cluster.phi} is
+If a phi-based strategy is requested but \code{x$Species.cluster.phi} is
 missing, the function issues a warning and automatically falls back to
 \code{"count"} (when \code{x$Plot.cluster} is binary) or \code{"cover"}
 (when it is not).

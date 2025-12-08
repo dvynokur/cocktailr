@@ -97,6 +97,13 @@ and border.}
 Default \code{"rainbow"}.}
 
 \item{png_res}{Resolution in dpi for PNG output (default 300).}
+
+\item{main}{Optional plot title for each page. If NULL (default), a standard
+header of the form "Species a-b of n" is drawn.}
+
+\item{...}{Additional graphical arguments passed to the underlying plotting
+functions (e.g. \code{plot()}, \code{par()}), allowing fine-tuning of
+appearance.}
 }
 \value{
 Invisibly returns \code{NULL}. Produces a plot on the current

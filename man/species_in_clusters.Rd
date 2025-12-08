@@ -2,7 +2,7 @@
 % Please edit documentation in R/species_in_clusters.R
 \name{species_in_clusters}
 \alias{species_in_clusters}
-\title{Species in Cocktail clusters (topology and optional φ)}
+\title{Species in Cocktail clusters (topology and optional phi)}
 \usage{
 species_in_clusters(
   x,
@@ -39,7 +39,7 @@ group-level \eqn{\phi};
 \item numeric: list all species with \eqn{\phi(s,g) \ge \code{min_phi}}.
 }}
 
-\item{top_k}{Optional integer ≥ 1. When \code{species_cluster_phi = TRUE},
+\item{top_k}{Optional integer >= 1. When \code{species_cluster_phi = TRUE},
 keep only the top \code{k} species per group after sorting; default
 \code{NULL} keeps all.}
 
@@ -58,9 +58,9 @@ vectors (species names per group).
 Return diagnostic species sets for selected Cocktail nodes or node unions.
 Works with a Cocktail object produced by \code{cocktail_cluster()} and uses:
 \itemize{
-\item \code{x$Cluster.species} — topological species per node (binary or
+\item \code{x$Cluster.species} - topological species per node (binary or
 positive weights; any value > 0 is treated as membership),
-\item optionally \code{x$Species.cluster.phi} — species–cluster \eqn{\phi}
+\item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}
 (if \code{species_cluster_phi = TRUE}).
 }
 
@@ -85,7 +85,7 @@ of species names.
 
 \item{\code{species_cluster_phi = TRUE}}{
 Requires \code{x$Species.cluster.phi}. For each group (node or union),
-define group-level species–group \eqn{\phi(s,g)} as the \strong{maximum}
+define group-level species-group \eqn{\phi(s,g)} as the \strong{maximum}
 across the nodes in that group:
 \deqn{\phi(s,g) = \max_{k \in \text{group}} \phi(s,k)}
 Negative values are set to 0.

@@ -1,12 +1,12 @@
-#' Species in Cocktail clusters (topology and optional φ)
+#' Species in Cocktail clusters (topology and optional phi)
 #'
 #' @description
 #' Return diagnostic species sets for selected Cocktail nodes or node unions.
 #' Works with a Cocktail object produced by \code{cocktail_cluster()} and uses:
 #' \itemize{
-#'   \item \code{x$Cluster.species} — topological species per node (binary or
+#'   \item \code{x$Cluster.species} - topological species per node (binary or
 #'         positive weights; any value > 0 is treated as membership),
-#'   \item optionally \code{x$Species.cluster.phi} — species–cluster \eqn{\phi}
+#'   \item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}
 #'         (if \code{species_cluster_phi = TRUE}).
 #' }
 #'
@@ -31,7 +31,7 @@
 #'
 #' \item{\code{species_cluster_phi = TRUE}}{
 #'   Requires \code{x$Species.cluster.phi}. For each group (node or union),
-#'   define group-level species–group \eqn{\phi(s,g)} as the \strong{maximum}
+#'   define group-level species-group \eqn{\phi(s,g)} as the \strong{maximum}
 #'   across the nodes in that group:
 #'   \deqn{\phi(s,g) = \max_{k \in \text{group}} \phi(s,k)}
 #'   Negative values are set to 0.
@@ -82,7 +82,7 @@
 #'           group-level \eqn{\phi};
 #'     \item numeric: list all species with \eqn{\phi(s,g) \ge \code{min_phi}}.
 #'   }
-#' @param top_k Optional integer ≥ 1. When \code{species_cluster_phi = TRUE},
+#' @param top_k Optional integer >= 1. When \code{species_cluster_phi = TRUE},
 #'   keep only the top \code{k} species per group after sorting; default
 #'   \code{NULL} keeps all.
 #' @param sort_desc Logical; when \code{species_cluster_phi = TRUE}, sort
@@ -184,18 +184,18 @@ species_in_clusters <- function(
   }
 
   if (!any(valid_groups)) {
-    return(setNames(list(), character(0)))
+    return(stats::setNames(list(), character(0)))
   }
 
   grp_ids   <- grp_ids[valid_groups]
   grp_names <- grp_names[valid_groups]
 
-  # If φ requested but matrix missing -> warn and fall back to topology only
+  # If phi requested but matrix missing -> warn and fall back to topology only
   if (isTRUE(species_cluster_phi) &&
       (!("Species.cluster.phi" %in% names(x)) || is.null(x$Species.cluster.phi))) {
     warning(
       "species_cluster_phi = TRUE requested, but x$Species.cluster.phi is not present.\n",
-      "Recompute cocktail_cluster(..., species_cluster_phi = TRUE) to enable φ output.\n",
+      "Recompute cocktail_cluster(..., species_cluster_phi = TRUE) to enable phi output.\n",
       "Returning only topological species (species_cluster_phi = FALSE)."
     )
     species_cluster_phi <- FALSE
@@ -214,7 +214,7 @@ species_in_clusters <- function(
     return(out)
   }
 
-  ## ---- Case 2: φ-based output --------------------------------------------
+  ## ---- Case 2: phi-based output --------------------------------------------
   Phi <- x$Species.cluster.phi
   if (is.null(Phi) || !is.matrix(Phi)) {
     stop("Internal error: species_cluster_phi = TRUE but `x$Species.cluster.phi` is missing or not a matrix.")
@@ -280,7 +280,7 @@ species_in_clusters <- function(
            paste(missing_ids, collapse = ", "))
     }
 
-    Phi_g <- Phi[, col_idx, drop = FALSE]   # species × nodes_in_group
+    Phi_g <- Phi[, col_idx, drop = FALSE]   # species x nodes_in_group
     phi_s <- apply(Phi_g, 1L, max)         # group-level phi per species
     phi_s[phi_s < 0] <- 0
 

@@ -1,7 +1,7 @@
-#' Distance between Cocktail clusters based on species fidelity (φ)
+#' Distance between Cocktail clusters based on species fidelity (phi)
 #'
 #' @description
-#' Compute a φ-based distance between a set of Cocktail clusters (internal nodes).
+#' Compute a phi-based distance between a set of Cocktail clusters (internal nodes).
 #' For each cluster, a species fidelity profile is taken directly from
 #' \code{x$Species.cluster.phi}, restricted to the cluster's topological species
 #' set. Pairwise distances between clusters are then derived from these profiles
@@ -10,9 +10,9 @@
 #' @param x A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
 #'   containing at least:
 #'   \itemize{
-#'     \item \code{Cluster.species} — nodes × species (0/1),
-#'     \item \code{Cluster.height} — numeric vector of merge φ for each node, and
-#'     \item \code{Species.cluster.phi} — species × nodes Option A φ-matrix.
+#'     \item \code{Cluster.species} - nodes x species (0/1),
+#'     \item \code{Cluster.height} - numeric vector of merge phi for each node, and
+#'     \item \code{Species.cluster.phi} - species x nodes phi-matrix.
 #'   }
 #'   Note: \code{Species.cluster.phi} is only present if
 #'   \code{species_cluster_phi = TRUE} was used in \code{\link{cocktail_cluster}}.
@@ -24,15 +24,15 @@
 #'   If \code{NULL} or missing, **all** internal nodes
 #'   \code{1:nrow(x$Cluster.species)} are candidates.
 #'
-#' @param min_phi Numeric scalar; minimum merge φ (cluster height) required for a
+#' @param min_phi Numeric scalar; minimum merge phi (cluster height) required for a
 #'   node to be retained. Default \code{0.2}. Nodes whose corresponding
 #'   \code{x$Cluster.height} value is \emph{strictly less} than \code{min_phi}
-#'   are dropped before computing the φ-based distance. If, after applying
+#'   are dropped before computing the phi-based distance. If, after applying
 #'   \code{clusters} and \code{min_phi}, fewer than two nodes remain, an error
 #'   is raised.
 #'
 #' @details
-#' Let \eqn{\phi(s, k)} be the Option A φ-coefficient between species \eqn{s}
+#' Let \eqn{\phi(s, k)} be the phi-coefficient between species \eqn{s}
 #' and cluster \eqn{k}, stored in \code{x$Species.cluster.phi}. For each
 #' cluster \eqn{k}:
 #'
@@ -41,7 +41,7 @@
 #'         species with membership 1 in \code{x$Cluster.species[k,]}.
 #'   \item A species fidelity profile \eqn{\phi_k(s)} is taken as
 #'         \eqn{\phi(s,k)} for \eqn{s \in S_k}, and 0 for species outside
-#'         \eqn{S_k}. All negative φ values are set to 0 beforehand, so only
+#'         \eqn{S_k}. All negative phi values are set to 0 beforehand, so only
 #'         positive fidelity contributes.
 #' }
 #'
@@ -56,7 +56,7 @@
 #'          {\sum_{s \in S_A} \phi_A(s)}
 #' }
 #'
-#' with the convention that if the denominator is 0 (no positive φ for
+#' with the convention that if the denominator is 0 (no positive phi for
 #' \eqn{A}), then \eqn{\mathrm{sim}(A\to B) = 0}. The symmetric similarity is
 #'
 #' \deqn{
@@ -103,8 +103,8 @@ cluster_phi_dist <- function(
     stop("`min_phi` must be a single numeric value.")
   }
 
-  CS   <- x$Cluster.species       # nodes × species (0/1)
-  Phi  <- x$Species.cluster.phi   # species × nodes
+  CS   <- x$Cluster.species       # nodes x species (0/1)
+  Phi  <- x$Species.cluster.phi   # species x nodes
   H    <- x$Cluster.height        # length n_nodes
 
   if (!is.matrix(CS))
@@ -188,7 +188,7 @@ cluster_phi_dist <- function(
          paste(missing_cols, collapse = ", "))
   }
 
-  ## ---- build cluster × species φ-matrix (species fidelity profiles) -------
+  ## ---- build cluster x species phi-matrix (species fidelity profiles) -------
   n_cl   <- length(ids)
   n_sp   <- length(sp_names)
   labels <- paste0("c_", ids)
@@ -212,14 +212,14 @@ cluster_phi_dist <- function(
     M[i, sp_idx] <- phi_k
   }
 
-  ## ---- drop clusters with completely zero profiles (no positive φ) -------
+  ## ---- drop clusters with completely zero profiles (no positive phi) -------
   zero_rows <- which(rowSums(M) <= 0)
   if (length(zero_rows)) {
     if (length(zero_rows) == nrow(M)) {
-      stop("All requested clusters have zero positive φ in their ",
+      stop("All requested clusters have zero positive phi in their ",
            "topological species sets; cannot compute distances.")
     }
-    warning("Some clusters have zero positive φ in their topological species ",
+    warning("Some clusters have zero positive phi in their topological species ",
             "sets and will be dropped: ",
             paste(rownames(M)[zero_rows], collapse = ", "))
     keep <- setdiff(seq_len(nrow(M)), zero_rows)
@@ -234,7 +234,7 @@ cluster_phi_dist <- function(
          "distance matrix.")
   }
 
-  ## ---- compute symmetric φ-based distance matrix --------------------------
+  ## ---- compute symmetric phi-based distance matrix --------------------------
   Dmat <- matrix(0, n_cl, n_cl,
                  dimnames = list(labels, labels))
 
