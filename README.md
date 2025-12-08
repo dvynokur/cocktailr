@@ -100,16 +100,16 @@ A small end-to-end example on a toy **plots × species** matrix, showing:
 library(cocktailr)
 
 # Toy plots × species matrix with percentage cover
-vm <- matrix( 
+vm <- matrix(
   c(
-    70,60,50, 5,  0, 0,10, 0,
-    65,55,45,10,  5, 0, 0, 0,
-    60,50,40, 5,  0,10, 0, 0,
-    10, 5, 0,60,50,40,10, 0,
-     5,10, 0,55,45,35, 0, 5,
-     0, 5,10,50,40,30, 0,10,
-     5, 0, 0,10, 0, 5,60,50,
-     0, 0, 5, 0,10, 0,55,45
+    60,50,40,30,  5, 0,10, 0,
+    55,45,35,25, 10, 5, 0, 0,
+    50,40,30,20,  5,10, 0, 5,
+    45,35,25,15,  0, 5, 5, 0,
+    10, 5, 0, 0, 60,50,40,30,
+     5,10, 0, 0, 55,45,35,25,
+     0, 5,10, 0, 50,40,30,20,
+     0, 0, 5,10, 45,35,25,15
   ),
   nrow = 8, byrow = TRUE,
   dimnames = list(
@@ -159,7 +159,7 @@ parent_labels <- clusters_at_cut(
 )
 
 parent_labels
-#> [1] "c_2" "c_5"
+#> [1] "c_1" "c_2" "c_4"
 ```
 
 ### 3. Diagnostic species for parent clusters
@@ -173,11 +173,14 @@ diag_sp_topo <- species_in_clusters(
 )
 
 diag_sp_topo
-#> $c_2
-#> [1] "sp1" "sp2" "sp4"
+#> $c_1
+#> [1] "sp3" "sp4"
 #> 
-#> $c_5
-#> [1] "sp5" "sp6" "sp7" "sp8"
+#> $c_2
+#> [1] "sp1" "sp2"
+#> 
+#> $c_4
+#> [1] "sp5" "sp6" "sp8"
 ```
 
 With φ-based filtering and ranking (uses `Species.cluster.phi`):
@@ -192,18 +195,21 @@ diag_sp_phi <- species_in_clusters(
 )
 
 diag_sp_phi
-#> $c_2
+#> $c_1
 #>   species      phi
-#> 1     sp1 0.745356
-#> 2     sp2 0.745356
-#> 3     sp4 0.487950
+#> 1     sp4 1.000000
+#> 2     sp3 0.745356
 #> 
-#> $c_5
+#> $c_2
 #>   species       phi
-#> 1     sp8 0.7745967
-#> 2     sp5 0.4666667
-#> 3     sp6 0.4666667
-#> 4     sp7 0.2581989
+#> 1     sp1 1.0000000
+#> 2     sp2 0.6546537
+#> 
+#> $c_4
+#>   species     phi
+#> 1     sp8 1.00000
+#> 2     sp5 0.48795
+#> 3     sp6 0.48795
 ```
 
 ### 4. φ-based distances between clusters
@@ -220,11 +226,12 @@ D <- cluster_phi_dist(
 )
 
 D
-#>            c_1        c_2        c_3        c_4
-#> c_2 0.20919762                                 
-#> c_3 1.00000000 1.00000000                      
-#> c_4 1.00000000 1.00000000 0.14608309           
-#> c_5 1.00000000 1.00000000 0.19892976 0.06566174
+#>           c_1       c_2       c_3       c_4       c_5
+#> c_2 1.0000000                                        
+#> c_3 1.0000000 1.0000000                              
+#> c_4 1.0000000 1.0000000 0.1234754                    
+#> c_5 1.0000000 1.0000000 0.2597516 0.1440071          
+#> c_6 0.2344706 0.3527497 1.0000000 1.0000000 1.0000000
 
 # Hierarchical clustering of clusters
 hc_nodes <- hclust(D, method = "average")
@@ -239,18 +246,18 @@ rect.hclust(hc_nodes, k = 2, border = 2)
 
 grp_nodes <- cutree(hc_nodes, k = 2)
 grp_nodes
-#> c_1 c_2 c_3 c_4 c_5 
-#>   1   1   2   2   2
+#> c_1 c_2 c_3 c_4 c_5 c_6 
+#>   1   1   2   2   2   1
 table(grp_nodes)
 #> grp_nodes
 #> 1 2 
-#> 2 3
+#> 3 3
 
 # Build node groups as character labels ("c_1", "c_2", …) per group
 node_groups <- split(names(grp_nodes), grp_nodes)
 node_groups
 #> $`1`
-#> [1] "c_1" "c_2"
+#> [1] "c_1" "c_2" "c_6"
 #> 
 #> $`2`
 #> [1] "c_3" "c_4" "c_5"
@@ -302,7 +309,7 @@ assign_phi <- assign_releves(
 
 assign_phi
 #> plot1 plot2 plot3 plot4 plot5 plot6 plot7 plot8 
-#> "g_2" "g_2" "g_2" "g_5" "g_5" "g_5" "g_5" "g_5" 
+#> "g_2" "g_2" "g_2" "g_2" "g_4" "g_4" "g_4" "g_4" 
 #> attr(,"details")
 #> attr(,"details")$strategy
 #> [1] "phi_cover"
@@ -314,7 +321,7 @@ assign_phi
 #> NULL
 #> 
 #> attr(,"details")$groups_used
-#> [1] "g_2" "g_5"
+#> [1] "g_1" "g_2" "g_4"
 #> 
 #> attr(,"details")$min_phi
 #> [1] 0.2
@@ -326,8 +333,8 @@ assign_phi
 #> character(0)
 table(assign_phi)
 #> assign_phi
-#> g_2 g_5 
-#>   3   5
+#> g_2 g_4 
+#>   4   4
 ```
 
 The returned vector is named by plot ID and contains:
