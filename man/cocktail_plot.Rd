@@ -9,6 +9,7 @@ cocktail_plot(
   file = NULL,
   phi_cut = NULL,
   label_clusters = FALSE,
+  clusters = NULL,
   cex_species = 0.3,
   cex_clusters = 0.6,
   circle_inch = 0.1,
@@ -18,7 +19,9 @@ cocktail_plot(
   alpha_fill = 0.18,
   alpha_border = 0.65,
   palette = "rainbow",
-  png_res = 300
+  png_res = 300,
+  main = NULL,
+  ...
 )
 }
 \arguments{
@@ -36,23 +39,40 @@ as the species names; otherwise \code{colnames(Cluster.species)}.}
 on the current graphics device.
 }}
 
-\item{phi_cut}{Optional numeric. If given, draw background bands for
-parent clusters with \eqn{\phi \ge \mathrm{phi\_cut}}, and a dashed
-horizontal line at this \eqn{\phi} level across each page.}
+\item{phi_cut}{Optional numeric. If given (and \code{clusters} is
+\code{NULL}), draw background bands for parent clusters with
+\eqn{\phi \ge \mathrm{phi\_cut}}, and a dashed horizontal line
+at this \eqn{\phi} level across each page.}
 
-\item{label_clusters}{Logical/character. One of:
+\item{label_clusters}{Logical. If \code{FALSE}, no internal node labels
+are drawn. If \code{TRUE}:
 \itemize{
-\item \code{FALSE} — no internal node labels;
-\item \code{"all"} — label every internal node, placing the label
-where the parent branch meets the node (intersection of the
-parent’s vertical leg with the parent’s horizontal level;
-for root nodes, at their own merge height), \emph{plus} an
-additional set of labels at \eqn{\phi = 0} corresponding to
-the \eqn{\phi_\mathrm{cut} = 0} clusters (i.e. the same labels
-as \code{label_clusters = "phi_cut"} with \code{phi_cut = 0});
-\item \code{"phi_cut"} — only label nodes whose vertical branch
-crosses \code{phi_cut} (as in the dashed line).
-}}
+\item if \code{clusters} is supplied, label those cluster nodes
+(topmost per group) at their elbows, except that any supplied
+clusters whose vertical branch crosses \code{y = 0} are labelled
+\emph{only once} at \code{y = 0};
+\item else if \code{phi_cut} is supplied, label the clusters at
+the \eqn{\phi\_cut} level (where vertical branches cross the
+dashed line);
+\item else, label all internal nodes.
+}
+Labels are numeric node IDs.}
+
+\item{clusters}{Optional selection of clusters (nodes) to be shown as
+coloured bands and used for labelling when \code{label_clusters = TRUE}.
+Can be:
+\itemize{
+\item a vector like \code{c("c_12","c_27")} or \code{c(12,27)},
+where each element defines a separate group; or
+\item a \strong{list} of such vectors, where each element defines
+a \strong{union group} of nodes (e.g.
+\code{list(c(1,4,6,14), c(2,12,17))} or your
+\code{node_groups <- split(names(grp_nodes), grp_nodes)}).
+}
+Within each group, if both an ancestor and descendant are present,
+only the topmost (ancestor) is used for elbow labelling and band
+placement. All valid supplied IDs are considered for labels at
+\eqn{\phi = 0} when their branch crosses that level.}
 
 \item{cex_species}{Expansion factor for species (tip) labels on the x-axis.}
 

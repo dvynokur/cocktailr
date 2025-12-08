@@ -8,7 +8,7 @@ cocktail_cluster(
   vegmatrix,
   progress = TRUE,
   plot_values = c("binary", "rel_cover"),
-  species_cluster_phi = FALSE
+  species_cluster_phi = TRUE
 )
 }
 \arguments{
@@ -32,8 +32,9 @@ non-member plots or plots with zero total cover are set to 0.
 \item{species_cluster_phi}{Logical; if \code{TRUE}, compute and return
 \code{Species.cluster.phi}, a species × nodes matrix of \eqn{\phi} association
 coefficients between species presence (from binarized \code{vegmatrix}) and node
-membership (from \code{Plot.cluster > 0}). Default \code{FALSE} to avoid the extra
-computation and memory cost.}
+membership (from \code{Plot.cluster > 0}). Set species_cluster_phi = \code{TRUE} if you plan
+to use cluster_phi_dist() or species_in_clusters(..., species_cluster_phi = TRUE)
+later (default \code{TRUE}).}
 }
 \value{
 A list of class \code{"cocktail"} with:

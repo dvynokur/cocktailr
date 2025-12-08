@@ -38,8 +38,9 @@
 #' @param species_cluster_phi Logical; if `TRUE`, compute and return
 #'   `Species.cluster.phi`, a species × nodes matrix of \eqn{\phi} association
 #'   coefficients between species presence (from binarized `vegmatrix`) and node
-#'   membership (from `Plot.cluster > 0`). Default `FALSE` to avoid the extra
-#'   computation and memory cost.
+#'   membership (from `Plot.cluster > 0`). Set species_cluster_phi = `TRUE` if you plan
+#'   to use cluster_phi_dist() or species_in_clusters(..., species_cluster_phi = TRUE)
+#'   later (default `TRUE`).
 #'
 #' @return
 #' A list of class `"cocktail"` with:
@@ -88,7 +89,7 @@ cocktail_cluster <- function(
     vegmatrix,
     progress = TRUE,
     plot_values = c("binary", "rel_cover"),
-    species_cluster_phi = FALSE
+    species_cluster_phi = TRUE
 ) {
   plot_values <- match.arg(plot_values)
 

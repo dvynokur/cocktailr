@@ -23,22 +23,38 @@
 #'     \item anything else or \code{NULL} — draw only the first page
 #'           on the current graphics device.
 #'   }
-#' @param phi_cut Optional numeric. If given, draw background bands for
-#'   parent clusters with \eqn{\phi \ge \mathrm{phi\_cut}}, and a dashed
-#'   horizontal line at this \eqn{\phi} level across each page.
-#' @param label_clusters Logical/character. One of:
+#' @param phi_cut Optional numeric. If given (and \code{clusters} is
+#'   \code{NULL}), draw background bands for parent clusters with
+#'   \eqn{\phi \ge \mathrm{phi\_cut}}, and a dashed horizontal line
+#'   at this \eqn{\phi} level across each page.
+#' @param label_clusters Logical. If \code{FALSE}, no internal node labels
+#'   are drawn. If \code{TRUE}:
 #'   \itemize{
-#'     \item \code{FALSE} — no internal node labels;
-#'     \item \code{"all"} — label every internal node, placing the label
-#'           where the parent branch meets the node (intersection of the
-#'           parent’s vertical leg with the parent’s horizontal level;
-#'           for root nodes, at their own merge height), \emph{plus} an
-#'           additional set of labels at \eqn{\phi = 0} corresponding to
-#'           the \eqn{\phi_\mathrm{cut} = 0} clusters (i.e. the same labels
-#'           as \code{label_clusters = "phi_cut"} with \code{phi_cut = 0});
-#'     \item \code{"phi_cut"} — only label nodes whose vertical branch
-#'           crosses \code{phi_cut} (as in the dashed line).
+#'     \item if \code{clusters} is supplied, label those cluster nodes
+#'           (topmost per group) at their elbows, except that any supplied
+#'           clusters whose vertical branch crosses \code{y = 0} are labelled
+#'           \emph{only once} at \code{y = 0};
+#'     \item else if \code{phi_cut} is supplied, label the clusters at
+#'           the \eqn{\phi\_cut} level (where vertical branches cross the
+#'           dashed line);
+#'     \item else, label all internal nodes.
 #'   }
+#'   Labels are numeric node IDs.
+#' @param clusters Optional selection of clusters (nodes) to be shown as
+#'   coloured bands and used for labelling when \code{label_clusters = TRUE}.
+#'   Can be:
+#'   \itemize{
+#'     \item a vector like \code{c("c_12","c_27")} or \code{c(12,27)},
+#'           where each element defines a separate group; or
+#'     \item a \strong{list} of such vectors, where each element defines
+#'           a \strong{union group} of nodes (e.g.
+#'           \code{list(c(1,4,6,14), c(2,12,17))} or your
+#'           \code{node_groups <- split(names(grp_nodes), grp_nodes)}).
+#'   }
+#'   Within each group, if both an ancestor and descendant are present,
+#'   only the topmost (ancestor) is used for elbow labelling and band
+#'   placement. All valid supplied IDs are considered for labels at
+#'   \eqn{\phi = 0} when their branch crosses that level.
 #' @param cex_species Expansion factor for species (tip) labels on the x-axis.
 #' @param cex_clusters Expansion factor for cluster-number labels.
 #' @param circle_inch Circle radius (inches) for the white/black bubble
@@ -61,10 +77,12 @@
 #' @importFrom graphics axis par segments mtext rect symbols text
 #' @importFrom grDevices hcl.colors adjustcolor pdf png dev.off hcl.pals rainbow
 #' @export
+
 cocktail_plot <- function(
     x, file = NULL,
     phi_cut        = NULL,
     label_clusters = FALSE,
+    clusters       = NULL,
     cex_species    = 0.3,
     cex_clusters   = 0.6,
     circle_inch    = 0.1,
@@ -74,8 +92,125 @@ cocktail_plot <- function(
     alpha_fill     = 0.18,
     alpha_border   = 0.65,
     palette        = "rainbow",
-    png_res        = 300
+    png_res        = 300,
+    main           = NULL,
+    ...
 ) {
+  ## ---- helpers ------------------------------------------------------------
+  .parse_clusters_arg <- function(v) {
+    if (is.null(v)) return(NULL)
+
+    parse_one <- function(x) {
+      if (is.character(x)) {
+        as.integer(sub("^c_", "", x))
+      } else {
+        as.integer(x)
+      }
+    }
+
+    if (is.list(v)) {
+      lapply(v, parse_one)
+    } else {
+      ids <- parse_one(v)
+      lapply(as.list(ids), identity)
+    }
+  }
+
+  .keep_topmost_within <- function(ids, CM) {
+    ids <- sort(unique(ids))
+    if (!length(ids)) return(ids)
+    cm_sub <- CM[ids, , drop = FALSE]
+    kids <- unique(as.integer(cm_sub[cm_sub > 0]))
+    sort(setdiff(ids, intersect(ids, kids)))
+  }
+
+  filter_non_overlapping <- function(df, rx, ry) {
+    if (is.null(df) || nrow(df) <= 1L) return(df)
+    # higher (coarser) = y closer to 0 (less negative)
+    ord <- order(df$y, decreasing = TRUE)
+    df  <- df[ord, , drop = FALSE]
+
+    keep <- logical(nrow(df))
+    keep[1L] <- TRUE
+
+    for (i in 2:nrow(df)) {
+      xi <- df$x[i]
+      yi <- df$y[i]
+      overlap <- FALSE
+      for (j in which(keep)) {
+        if (abs(xi - df$x[j]) < 2 * rx &&
+            abs(yi - df$y[j]) < 2 * ry) {
+          overlap <- TRUE
+          break
+        }
+      }
+      if (!overlap) keep[i] <- TRUE
+    }
+    df[keep, , drop = FALSE]
+  }
+
+  compute_phi_crossings <- function(ycut, x_from, x_to, bands_df, Pos) {
+    if (is.null(bands_df) || nrow(bands_df) == 0) return(NULL)
+    crosses <- list()
+
+    # left legs
+    L_hit <- which(
+      pmin(Pos[, "ly0"], Pos[, "ly1"]) <= ycut &
+        pmax(Pos[, "ly0"], Pos[, "ly1"]) >= ycut
+    )
+    if (length(L_hit)) {
+      for (r in L_hit) {
+        x_leg <- Pos[r, "lx"]
+        if (x_leg < x_from || x_leg > x_to) next
+        bcand <- which(bands_df$x0 <= x_leg & bands_df$x1 >= x_leg)
+        if (!length(bcand)) next
+        nid <- bands_df$node_id[bcand[1L]]
+        crosses[[length(crosses) + 1L]] <- data.frame(
+          x = x_leg, y = ycut, label = nid
+        )
+      }
+    }
+
+    # right legs
+    R_hit <- which(
+      pmin(Pos[, "ry0"], Pos[, "ry1"]) <= ycut &
+        pmax(Pos[, "ry0"], Pos[, "ry1"]) >= ycut
+    )
+    if (length(R_hit)) {
+      for (r in R_hit) {
+        x_leg <- Pos[r, "rx"]
+        if (x_leg < x_from || x_leg > x_to) next
+        bcand <- which(bands_df$x0 <= x_leg & bands_df$x1 >= x_leg)
+        if (!length(bcand)) next
+        nid <- bands_df$node_id[bcand[1L]]
+        crosses[[length(crosses) + 1L]] <- data.frame(
+          x = x_leg, y = ycut, label = nid
+        )
+      }
+    }
+
+    if (!length(crosses)) return(NULL)
+    do.call(rbind, crosses)
+  }
+
+  ## small helper to choose page title
+  .page_title <- function(p, starts, ends, n, main) {
+    if (is.null(main)) {
+      sprintf("Species %d-%d of %d", starts[p], ends[p], n)
+    } else {
+      if (length(main) >= p) {
+        main[p]
+      } else {
+        main[1L]
+      }
+    }
+  }
+
+  ## ---- basic setup --------------------------------------------------------
+  if (!is.null(clusters) && !is.null(phi_cut)) {
+    warning("Both `clusters` and `phi_cut` supplied; using `clusters` for bands and labels.")
+  }
+
   CS <- x$Cluster.species
   CM <- x$Cluster.merged
   H  <- x$Cluster.height
@@ -83,12 +218,16 @@ cocktail_plot <- function(
 
   species_names <- if (!is.null(x$species)) x$species else colnames(CS)
 
-  ## --- species order (Cocktail-like) ---
+  ## ---- species order (Cocktail-like) --------------------------------------
   ord <- order(H)
-  Species.sort <- vapply(seq_len(n), function(i) paste(CS[ord, i], collapse = ""), "")
+  Species.sort <- vapply(
+    seq_len(n),
+    function(i) paste(CS[ord, i], collapse = ""),
+    FUN.VALUE = character(1)
+  )
   species_order <- order(Species.sort)
 
-  ## --- precompute coordinates for every merge (legs + y) ---
+  ## ---- precompute coordinates for every merge (legs + y) ------------------
   Pos <- matrix(
     NA_real_,
     nrow = n - 1,
@@ -126,10 +265,10 @@ cocktail_plot <- function(
   x1 <- pmax(Pos[, "lx"], Pos[, "rx"])
   y  <- -H[seq_len(n - 1)]
 
-  ## --- cluster "centre" (horizontal midpoint of tips) ---
+  ## ---- cluster "centre" (horizontal midpoint of tips) ---------------------
   center_x <- (x0 + x1) / 2
 
-  ## --- parent index for each node (1..n-1), NA for roots ---
+  ## ---- parent index for each node (1..n-1), NA for roots ------------------
   parent_idx <- rep(NA_integer_, nrow(CM))
   for (p in seq_len(nrow(CM))) {
     for (j in 1:2) {
@@ -140,38 +279,21 @@ cocktail_plot <- function(
     }
   }
 
-  ## --- helper: remove overlapping labels, keep higher ones ---
-  filter_non_overlapping <- function(df, rx, ry) {
-    if (is.null(df) || nrow(df) <= 1L) return(df)
-    # higher (coarser) = y closer to 0 (less negative)
-    ord <- order(df$y, decreasing = TRUE)
-    df  <- df[ord, , drop = FALSE]
-
-    keep <- logical(nrow(df))
-    keep[1L] <- TRUE
-
-    for (i in 2:nrow(df)) {
-      xi <- df$x[i]
-      yi <- df$y[i]
-      overlap <- FALSE
-      for (j in which(keep)) {
-        if (abs(xi - df$x[j]) < 2 * rx &&
-            abs(yi - df$y[j]) < 2 * ry) {
-          overlap <- TRUE
-          break
-        }
-      }
-      if (!overlap) keep[i] <- TRUE
-    }
-    df[keep, , drop = FALSE]
+  ## For each node: which parent row/leg (to know its vertical branch)
+  child_parent_row <- parent_idx
+  child_leg_side   <- rep(NA_character_, length(parent_idx))
+  for (p in seq_len(nrow(CM))) {
+    if (CM[p, 1] > 0L) child_leg_side[CM[p, 1]] <- "L"
+    if (CM[p, 2] > 0L) child_leg_side[CM[p, 2]] <- "R"
   }
 
-  ## --- build bands from phi_cut (parent clusters only) ---
-  bands <- NULL
-  if (!is.null(phi_cut)) {
+  ## ---- bands: phi_cut-based (if no clusters) ------------------------------
+  bands_phi  <- NULL
+
+  if (is.null(clusters) && !is.null(phi_cut)) {
     idx <- which(H >= phi_cut)
     if (length(idx)) {
-      children <- unique(as.integer(CM[idx, ][CM[idx, ] > 0]))
+      children <- unique(as.integer(CM[idx, , drop = FALSE][CM[idx, , drop = FALSE] > 0]))
       top_idx  <- sort(setdiff(idx, intersect(idx, children)))
 
       if (length(top_idx)) {
@@ -200,83 +322,90 @@ cocktail_plot <- function(
             node_id = i
           )
         }
-        bands <- do.call(rbind, blist)
+        bands_phi <- do.call(rbind, blist)
       }
     }
   }
 
-  ## --- EXTRA bands for phi = 0 labelling in "all" mode (as if phi_cut = 0) ---
-  bands_phi0 <- NULL
-  if (identical(label_clusters, "all")) {
-    idx0 <- which(H >= 0)
-    if (length(idx0)) {
-      children0 <- unique(as.integer(CM[idx0, ][CM[idx0, ] > 0]))
-      top_idx0  <- sort(setdiff(idx0, intersect(idx0, children0)))
+  ## ---- bands: custom cluster groups (if clusters supplied) ----------------
+  clusters_top_nodes   <- NULL
+  bands_custom         <- NULL
+  clusters_all_ids_val <- NULL  # all valid cluster IDs supplied (for y=0 labels)
 
-      if (length(top_idx0)) {
-        blist0 <- vector("list", length(top_idx0))
-        for (ii in seq_along(top_idx0)) {
-          i <- top_idx0[ii]
-          spp  <- which(CS[i, ] == 1)
-          tips <- sort(match(spp, species_order))
-          if (length(tips) < 2) next
-          blist0[[ii]] <- data.frame(
-            x0 = min(tips), x1 = max(tips),
-            y0 = -1, y1 = 0.1,
-            node_id = i
+  if (!is.null(clusters)) {
+    n_nodes <- nrow(CS)
+    grp_ids <- .parse_clusters_arg(clusters)
+
+    if (length(grp_ids)) {
+      # validate and drop invalid IDs per group
+      valid <- logical(length(grp_ids))
+      for (g in seq_along(grp_ids)) {
+        ids <- grp_ids[[g]]
+        bad <- is.na(ids) | ids < 1L | ids > n_nodes
+        if (any(bad)) {
+          warning(
+            "Dropping invalid node IDs in custom cluster group ", g, ": ",
+            paste(ids[bad], collapse = ", ")
           )
+          ids <- ids[!bad]
         }
-        bands_phi0 <- do.call(rbind, blist0)
+        grp_ids[[g]] <- ids
+        valid[g] <- length(ids) > 0L
+      }
+      grp_ids <- grp_ids[valid]
+
+      if (length(grp_ids)) {
+        # all valid IDs (for y=0 labels)
+        clusters_all_ids_val <- sort(unique(unlist(grp_ids)))
+
+        # keep only topmost nodes per group (for bands + elbow labels)
+        top_nodes <- lapply(grp_ids, .keep_topmost_within, CM = CM)
+
+        # build bands over union of species of topmost nodes
+        bx0 <- numeric(0)
+        bx1 <- numeric(0)
+
+        for (g in seq_along(top_nodes)) {
+          ids_top <- top_nodes[[g]]
+          if (!length(ids_top)) next
+          sp_logical <- colSums(CS[ids_top, , drop = FALSE] > 0) > 0L
+          spp <- which(sp_logical)
+          if (length(spp) < 2) next
+          tips <- sort(match(spp, species_order))
+          bx0 <- c(bx0, min(tips))
+          bx1 <- c(bx1, max(tips))
+        }
+
+        if (length(bx0)) {
+          bands_custom <- data.frame(
+            x0 = bx0,
+            x1 = bx1,
+            y0 = -1,
+            y1 = 0.1,
+            stringsAsFactors = FALSE
+          )
+
+          k <- nrow(bands_custom)
+          cols_base <-
+            if (palette %in% rownames(grDevices::hcl.pals())) {
+              grDevices::hcl.colors(max(k, 3), palette = palette)
+            } else if (tolower(palette) == "rainbow") {
+              grDevices::rainbow(k)
+            } else {
+              grDevices::hcl.colors(max(k, 3), palette = "Set3")
+            }
+          cols_base <- cols_base[seq_len(k)]
+
+          bands_custom$col    <- grDevices::adjustcolor(cols_base, alpha.f = alpha_fill)
+          bands_custom$border <- grDevices::adjustcolor(cols_base, alpha.f = alpha_border)
+
+          clusters_top_nodes <- top_nodes
+        }
       }
     }
   }
 
-  ## --- helper: cluster labels at phi_cut crossings (vertical branches) ---
-  compute_phi_crossings <- function(ycut, x_from, x_to, bands_df) {
-    if (is.null(bands_df) || nrow(bands_df) == 0) return(NULL)
-    crosses <- list()
-
-    # left legs
-    L_hit <- which(
-      pmin(Pos[, "ly0"], Pos[, "ly1"]) <= ycut &
-        pmax(Pos[, "ly0"], Pos[, "ly1"]) >= ycut
-    )
-    if (length(L_hit)) {
-      for (r in L_hit) {
-        x_leg <- Pos[r, "lx"]
-        if (x_leg < x_from || x_leg > x_to) next
-        bcand <- which(bands_df$x0 <= x_leg & bands_df$x1 >= x_leg)
-        if (!length(bcand)) next
-        nid <- bands_df$node_id[bcand[1]]
-        crosses[[length(crosses) + 1]] <- data.frame(
-          x = x_leg, y = ycut, label = nid
-        )
-      }
-    }
-
-    # right legs
-    R_hit <- which(
-      pmin(Pos[, "ry0"], Pos[, "ry1"]) <= ycut &
-        pmax(Pos[, "ry0"], Pos[, "ry1"]) >= ycut
-    )
-    if (length(R_hit)) {
-      for (r in R_hit) {
-        x_leg <- Pos[r, "rx"]
-        if (x_leg < x_from || x_leg > x_to) next
-        bcand <- which(bands_df$x0 <= x_leg & bands_df$x1 >= x_leg)
-        if (!length(bcand)) next
-        nid <- bands_df$node_id[bcand[1]]
-        crosses[[length(crosses) + 1]] <- data.frame(
-          x = x_leg, y = ycut, label = nid
-        )
-      }
-    }
-
-    if (!length(crosses)) return(NULL)
-    do.call(rbind, crosses)
-  }
-
-  ## --- pagination (+ auto width if needed) ---
+  ## ---- pagination (+ auto width if needed) --------------------------------
   pages <- split(seq_len(n), ceiling(seq_len(n) / page_size))
   if (is.null(width_in)) {
     width_in <- min(150, max(16, 0.06 * max(lengths(pages))))
@@ -286,7 +415,7 @@ cocktail_plot <- function(
   ends    <- pmin(starts + page_size - 1, n)
   n_pages <- length(starts)
 
-  ## --- determine device behaviour (current vs file) ---
+  ## ---- determine device behaviour (current vs file) -----------------------
   use_current_dev <- FALSE
   if (is.null(file)) {
     use_current_dev <- TRUE
@@ -306,8 +435,8 @@ cocktail_plot <- function(
   # flag to report overlap/clipping
   overlap_dropped <- FALSE
 
-  ## --- inner page-drawing function ---
-  draw_page <- function(x_from, x_to, page_index) {
+  ## ---- inner page-drawing function ----------------------------------------
+  draw_page <- function(x_from, x_to, page_index, ...) {
     # For a single page, spread species across full width.
     # For multiple pages, use a fixed-width window per page so the last page is clumped.
     if (n_pages == 1L) {
@@ -326,7 +455,9 @@ cocktail_plot <- function(
     graphics::par(mar = c(8, 5, 1, 1), xaxs = "i", yaxs = "i")
     plot(c(x_lim_left, x_lim_right), c(0.1, -1),
          type = "n", xaxt = "n", yaxt = "n",
-         xlab = "", ylab = expression(paste(phi, " coefficient")))
+         xlab = "", ylab = expression(paste(phi, " coefficient")),
+         ...)
+
     graphics::axis(
       2, las = 2,
       at = seq(0, -1, by = -0.2),
@@ -341,15 +472,24 @@ cocktail_plot <- function(
     ymin <- usr[3]
     min_y <- ymin + ry_d  # centre so that bottom of circle touches axis
 
+    # choose which bands to draw (custom takes precedence)
+    bands_to_draw <- NULL
+    if (!is.null(bands_custom) && nrow(bands_custom) > 0) {
+      bands_to_draw <- bands_custom
+    } else if (!is.null(bands_phi) && nrow(bands_phi) > 0) {
+      bands_to_draw <- bands_phi
+    }
+
     # background bands
-    if (!is.null(bands) && nrow(bands) > 0) {
-      hit <- which(bands$x1 >= x_from & bands$x0 <= x_to)
+    if (!is.null(bands_to_draw) && nrow(bands_to_draw) > 0) {
+      hit <- which(bands_to_draw$x1 >= x_from & bands_to_draw$x0 <= x_to)
       for (b in hit) {
-        xl <- max(bands$x0[b], x_from) - 0.5
-        xr <- min(bands$x1[b], x_to)   + 0.5
+        xl <- max(bands_to_draw$x0[b], x_from) - 0.5
+        xr <- min(bands_to_draw$x1[b], x_to)   + 0.5
         graphics::rect(
-          xl, bands$y0[b], xr, bands$y1[b],
-          col = bands$col[b], border = bands$border[b]
+          xl, bands_to_draw$y0[b], xr, bands_to_draw$y1[b],
+          col    = bands_to_draw$col[b],
+          border = bands_to_draw$border[b]
         )
       }
     }
@@ -395,75 +535,108 @@ cocktail_plot <- function(
       las = 2, cex.axis = cex_species
     )
 
-    ## --- cluster / node labels ---
-    if (identical(label_clusters, "all")) {
+    ## ---- cluster / node labels -------------------------------------------
 
-      ## 1) EXTRA: labels for phi = 0 using the same logic as "phi_cut" with phi_cut = 0
-      ##    (we draw these FIRST and remember which cluster IDs we used)
-      labels_phi0_drawn <- integer(0)
+    if (!isTRUE(label_clusters)) return(invisible(NULL))
 
-      if (!is.null(bands_phi0) && nrow(bands_phi0) > 0) {
-        cross0 <- compute_phi_crossings(0, x_from, x_to, bands_phi0)
-        if (!is.null(cross0) && nrow(cross0)) {
-          # avoid clipping at bottom: lift centres to at least min_y
-          low0 <- which(cross0$y < min_y)
-          if (length(low0)) cross0$y[low0] <- min_y
+    ## Case A: clusters supplied -> labels for those clusters
+    if (!is.null(clusters_top_nodes) && length(clusters_top_nodes)) {
 
-          cross0_keep <- filter_non_overlapping(cross0, rx_d, ry_d)
-          if (nrow(cross0_keep) < nrow(cross0)) {
+      ## A1. First: labels at y = 0 for supplied clusters whose branch crosses y = 0
+      ids_crossing0_page <- integer(0)
+      df0_keep <- NULL
+
+      if (!is.null(clusters_all_ids_val) && length(clusters_all_ids_val)) {
+        x_phi0 <- numeric(0)
+        y_phi0 <- numeric(0)
+        lab0   <- integer(0)
+
+        for (i_node in clusters_all_ids_val) {
+          if (is.na(i_node) || i_node < 1L || i_node > length(child_parent_row))
+            next
+          p <- child_parent_row[i_node]
+          if (is.na(p)) next  # no parent -> no vertical branch
+
+          side <- child_leg_side[i_node]
+          if (side == "L") {
+            x_leg  <- Pos[p, "lx"]
+            y0_leg <- Pos[p, "ly0"]
+            y1_leg <- Pos[p, "ly1"]
+          } else if (side == "R") {
+            x_leg  <- Pos[p, "rx"]
+            y0_leg <- Pos[p, "ry0"]
+            y1_leg <- Pos[p, "ry1"]
+          } else {
+            next
+          }
+
+          # does this vertical branch cross y=0?
+          if (min(y0_leg, y1_leg) <= 0 && max(y0_leg, y1_leg) >= 0) {
+            if (x_leg < x_from || x_leg > x_to) next
+            x_phi0 <- c(x_phi0, x_leg)
+            y_phi0 <- c(y_phi0, 0)
+            lab0   <- c(lab0, i_node)
+          }
+        }
+
+        if (length(x_phi0)) {
+          df0 <- data.frame(
+            x = x_phi0,
+            y = y_phi0,
+            label = lab0,
+            stringsAsFactors = FALSE
+          )
+
+          df0_keep <- filter_non_overlapping(df0, rx_d, ry_d)
+          if (nrow(df0_keep) < nrow(df0)) {
             overlap_dropped <<- TRUE
           }
 
-          if (nrow(cross0_keep) > 0) {
-            # remember which cluster IDs we actually plotted at phi = 0
-            labels_phi0_drawn <- unique(cross0_keep$label)
+          if (nrow(df0_keep) > 0) {
+            ids_crossing0_page <- unique(df0_keep$label)
 
             graphics::symbols(
-              cross0_keep$x, cross0_keep$y,
-              circles = rep(1, nrow(cross0_keep)),
+              df0_keep$x, df0_keep$y,
+              circles = rep(1, nrow(df0_keep)),
               inches  = circle_inch,
               add     = TRUE, bg = "white", fg = "black", lwd = 0.6
             )
             graphics::text(
-              cross0_keep$x, cross0_keep$y,
-              labels = cross0_keep$label,
+              df0_keep$x, df0_keep$y,
+              labels = df0_keep$label,
               cex = cex_clusters
             )
           }
         }
       }
 
-      ## 2) Standard "all nodes" labels:
-      ##    where the parent branch meets the node (EXCLUDING clusters already
-      ##    labelled at phi = 0 above)
-      hit_nodes <- which(x1 >= x_from & x0 <= x_to)
-
-      # do not re-label clusters that already got a phi = 0 label
-      if (length(labels_phi0_drawn)) {
-        hit_nodes <- setdiff(hit_nodes, labels_phi0_drawn)
+      ## A2. Elbow labels for topmost nodes, but NOT for those already labelled at y=0
+      node_ids <- sort(unique(unlist(clusters_top_nodes)))
+      node_ids <- node_ids[node_ids >= 1L & node_ids <= length(parent_idx)]
+      if (length(ids_crossing0_page)) {
+        node_ids <- setdiff(node_ids, ids_crossing0_page)
       }
 
-      if (length(hit_nodes)) {
-        xm <- numeric(length(hit_nodes))
-        ym <- numeric(length(hit_nodes))
+      if (length(node_ids)) {
+        xm <- numeric(length(node_ids))
+        ym <- numeric(length(node_ids))
 
-        for (k in seq_along(hit_nodes)) {
-          i_node <- hit_nodes[k]
+        for (k in seq_along(node_ids)) {
+          i_node <- node_ids[k]
           p_node <- parent_idx[i_node]
 
           if (!is.na(p_node)) {
-            # node i_node is either left or right child of parent p_node
+            # label where this cluster begins: parent horizontal -> vertical
             if (CM[p_node, 1] == i_node) {
               x_lab <- Pos[p_node, "lx"]
             } else if (CM[p_node, 2] == i_node) {
               x_lab <- Pos[p_node, "rx"]
             } else {
-              # safety fallback: use centre of this node
               x_lab <- center_x[i_node]
             }
-            y_lab <- -H[p_node]  # parent height
+            y_lab <- -H[p_node]
           } else {
-            # root: label at its own merge height, at centre of its span
+            # root
             x_lab <- center_x[i_node]
             y_lab <- y[i_node]
           }
@@ -472,18 +645,18 @@ cocktail_plot <- function(
           ym[k] <- y_lab
         }
 
-        # keep only labels on current page horizontally
-        keep <- which(xm >= x_from & xm <= x_to)
+        keep <- which(xm >= x_from & xm <= x_to & !is.na(xm) & !is.na(ym))
         if (length(keep)) {
-          xm   <- xm[keep]
-          ym   <- ym[keep]
-          labs <- hit_nodes[keep]
+          df <- data.frame(
+            x = xm[keep],
+            y = ym[keep],
+            label = node_ids[keep],
+            stringsAsFactors = FALSE
+          )
 
-          # avoid clipping at bottom: lift centres to at least min_y
-          low <- which(ym < min_y)
-          if (length(low)) ym[low] <- min_y
+          low <- which(df$y < min_y)
+          if (length(low)) df$y[low] <- min_y
 
-          df <- data.frame(x = xm, y = ym, label = labs, stringsAsFactors = FALSE)
           df_keep <- filter_non_overlapping(df, rx_d, ry_d)
           if (nrow(df_keep) < nrow(df)) {
             overlap_dropped <<- TRUE
@@ -505,46 +678,110 @@ cocktail_plot <- function(
         }
       }
 
-    } else if (identical(label_clusters, "phi_cut")) {
-      if (!is.null(phi_cut) && !is.null(bands) && nrow(bands) > 0) {
-        ycut <- -phi_cut
-        for (yy in ycut) {
-          cross <- compute_phi_crossings(yy, x_from, x_to, bands)
-          if (!is.null(cross) && nrow(cross)) {
-            # avoid clipping at bottom: lift centres to at least min_y
-            low <- which(cross$y < min_y)
-            if (length(low)) cross$y[low] <- min_y
+      return(invisible(NULL))
+    }
 
-            cross_keep <- filter_non_overlapping(cross, rx_d, ry_d)
-            if (nrow(cross_keep) < nrow(cross)) {
-              overlap_dropped <<- TRUE
-            }
+    ## Case B: no clusters, but phi_cut present -> label φ-cut clusters
+    if (!is.null(phi_cut) && !is.null(bands_phi) && nrow(bands_phi) > 0) {
+      ycut <- -phi_cut
+      cross <- compute_phi_crossings(ycut, x_from, x_to, bands_phi, Pos)
+      if (!is.null(cross) && nrow(cross)) {
+        low <- which(cross$y < min_y)
+        if (length(low)) cross$y[low] <- min_y
 
-            if (nrow(cross_keep) > 0) {
-              graphics::symbols(
-                cross_keep$x, cross_keep$y,
-                circles = rep(1, nrow(cross_keep)),
-                inches  = circle_inch,
-                add     = TRUE, bg = "white", fg = "black", lwd = 0.6
-              )
-              graphics::text(
-                cross_keep$x, cross_keep$y,
-                labels = cross_keep$label,
-                cex = cex_clusters
-              )
-            }
-          }
+        cross_keep <- filter_non_overlapping(cross, rx_d, ry_d)
+        if (nrow(cross_keep) < nrow(cross)) {
+          overlap_dropped <<- TRUE
+        }
+
+        if (nrow(cross_keep) > 0) {
+          graphics::symbols(
+            cross_keep$x, cross_keep$y,
+            circles = rep(1, nrow(cross_keep)),
+            inches  = circle_inch,
+            add     = TRUE, bg = "white", fg = "black", lwd = 0.6
+          )
+          graphics::text(
+            cross_keep$x, cross_keep$y,
+            labels = cross_keep$label,
+            cex = cex_clusters
+          )
         }
       }
+
+      return(invisible(NULL))
     }
+
+    ## Case C: no clusters, no phi_cut -> label all internal nodes
+    hit_nodes <- which(x1 >= x_from & x0 <= x_to)
+    if (!length(hit_nodes)) return(invisible(NULL))
+
+    xm <- numeric(length(hit_nodes))
+    ym <- numeric(length(hit_nodes))
+
+    for (k in seq_along(hit_nodes)) {
+      i_node <- hit_nodes[k]
+      p_node <- parent_idx[i_node]
+
+      if (!is.na(p_node)) {
+        if (CM[p_node, 1] == i_node) {
+          x_lab <- Pos[p_node, "lx"]
+        } else if (CM[p_node, 2] == i_node) {
+          x_lab <- Pos[p_node, "rx"]
+        } else {
+          x_lab <- center_x[i_node]
+        }
+        y_lab <- -H[p_node]
+      } else {
+        x_lab <- center_x[i_node]
+        y_lab <- y[i_node]
+      }
+
+      xm[k] <- x_lab
+      ym[k] <- y_lab
+    }
+
+    keep <- which(xm >= x_from & xm <= x_to)
+    if (!length(keep)) return(invisible(NULL))
+
+    df <- data.frame(
+      x = xm[keep],
+      y = ym[keep],
+      label = hit_nodes[keep],
+      stringsAsFactors = FALSE
+    )
+
+    low <- which(df$y < min_y)
+    if (length(low)) df$y[low] <- min_y
+
+    df_keep <- filter_non_overlapping(df, rx_d, ry_d)
+    if (nrow(df_keep) < nrow(df)) {
+      overlap_dropped <<- TRUE
+    }
+
+    if (nrow(df_keep) > 0) {
+      graphics::symbols(
+        df_keep$x, df_keep$y,
+        circles = rep(1, nrow(df_keep)),
+        inches  = circle_inch,
+        add     = TRUE, bg = "white", fg = "black", lwd = 0.6
+      )
+      graphics::text(
+        df_keep$x, df_keep$y,
+        labels = df_keep$label,
+        cex = cex_clusters
+      )
+    }
+
+    invisible(NULL)
   }
 
-  ## --- current device: only first page ---
+  ## ---- current device: only first page ------------------------------------
   if (use_current_dev) {
     p <- 1L
-    draw_page(starts[p], ends[p], page_index = p)
+    draw_page(starts[p], ends[p], page_index = p, ...)
     graphics::mtext(
-      sprintf("Species %d-%d of %d", starts[p], ends[p], n),
+      .page_title(p, starts, ends, n, main),
       side = 3, line = 0.2, cex = 0.8
     )
     if (overlap_dropped) {
@@ -556,20 +793,20 @@ cocktail_plot <- function(
     return(invisible(NULL))
   }
 
-  ## --- PDF output ---
+  ## ---- PDF output ---------------------------------------------------------
   if (grepl("\\.pdf$", file, ignore.case = TRUE)) {
     grDevices::pdf(file, width = width_in, height = height_in, onefile = TRUE)
     on.exit(grDevices::dev.off(), add = TRUE)
 
     for (p in seq_along(starts)) {
-      draw_page(starts[p], ends[p], page_index = p)
+      draw_page(starts[p], ends[p], page_index = p, ...)
       graphics::mtext(
-        sprintf("Species %d-%d of %d", starts[p], ends[p], n),
+        .page_title(p, starts, ends, n, main),
         side = 3, line = 0.2, cex = 0.8
       )
     }
 
-    ## --- PNG output ---
+    ## ---- PNG output ---------------------------------------------------------
   } else if (grepl("\\.png$", file, ignore.case = TRUE)) {
     base <- sub("\\.png$", "", file, ignore.case = TRUE)
 
@@ -588,9 +825,9 @@ cocktail_plot <- function(
         res    = png_res
       )
 
-      draw_page(starts[p], ends[p], page_index = p)
+      draw_page(starts[p], ends[p], page_index = p, ...)
       graphics::mtext(
-        sprintf("Species %d-%d of %d", starts[p], ends[p], n),
+        .page_title(p, starts, ends, n, main),
         side = 3, line = 0.2, cex = 0.8
       )
 

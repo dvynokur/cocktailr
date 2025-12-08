@@ -10,7 +10,8 @@
 #' @param x A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
 #'   containing at least:
 #'   \itemize{
-#'     \item \code{Cluster.species} — nodes × species (0/1), and
+#'     \item \code{Cluster.species} — nodes × species (0/1),
+#'     \item \code{Cluster.height} — numeric vector of merge φ for each node, and
 #'     \item \code{Species.cluster.phi} — species × nodes Option A φ-matrix.
 #'   }
 #'   Note: \code{Species.cluster.phi} is only present if
@@ -21,7 +22,14 @@
 #'   of node labels (e.g. \code{c("c_12", "c_27")}). Each element refers to a
 #'   single internal node; no grouping/union is performed.
 #'   If \code{NULL} or missing, **all** internal nodes
-#'   \code{1:nrow(x$Cluster.species)} are used.
+#'   \code{1:nrow(x$Cluster.species)} are candidates.
+#'
+#' @param min_phi Numeric scalar; minimum merge φ (cluster height) required for a
+#'   node to be retained. Default \code{0.2}. Nodes whose corresponding
+#'   \code{x$Cluster.height} value is \emph{strictly less} than \code{min_phi}
+#'   are dropped before computing the φ-based distance. If, after applying
+#'   \code{clusters} and \code{min_phi}, fewer than two nodes remain, an error
+#'   is raised.
 #'
 #' @details
 #' Let \eqn{\phi(s, k)} be the Option A φ-coefficient between species \eqn{s}
@@ -36,6 +44,9 @@
 #'         \eqn{S_k}. All negative φ values are set to 0 beforehand, so only
 #'         positive fidelity contributes.
 #' }
+#'
+#' Only nodes with \code{x$Cluster.height >= min_phi} are retained for distance
+#' computation (after any user-specified filtering via \code{clusters}).
 #'
 #' For any pair of clusters \eqn{A,B}, define:
 #'
@@ -65,7 +76,8 @@
 #' @export
 cluster_phi_dist <- function(
     x,
-    clusters = NULL
+    clusters = NULL,
+    min_phi = 0.2
 ) {
   ## ---- basic checks -------------------------------------------------------
   if (!is.list(x) || !"Cluster.species" %in% names(x)) {
@@ -82,8 +94,18 @@ cluster_phi_dist <- function(
     )
   }
 
-  CS  <- x$Cluster.species         # nodes × species (0/1)
-  Phi <- x$Species.cluster.phi     # species × nodes
+  # Need Cluster.height to apply min_phi
+  if (!"Cluster.height" %in% names(x) || is.null(x$Cluster.height)) {
+    stop("`x$Cluster.height` is not available; cannot apply `min_phi` filtering.")
+  }
+
+  if (!is.numeric(min_phi) || length(min_phi) != 1L || is.na(min_phi)) {
+    stop("`min_phi` must be a single numeric value.")
+  }
+
+  CS   <- x$Cluster.species       # nodes × species (0/1)
+  Phi  <- x$Species.cluster.phi   # species × nodes
+  H    <- x$Cluster.height        # length n_nodes
 
   if (!is.matrix(CS))
     stop("`x$Cluster.species` must be a matrix.")
@@ -97,6 +119,10 @@ cluster_phi_dist <- function(
 
   if (is.null(rownames(Phi)))
     stop("`x$Species.cluster.phi` must have species row names.")
+
+  if (length(H) < n_nodes) {
+    stop("`x$Cluster.height` must be a numeric vector of length nrow(x$Cluster.species).")
+  }
 
   ## ---- align species between CS and Phi -----------------------------------
   if (!all(sp_names %in% rownames(Phi))) {
@@ -133,6 +159,19 @@ cluster_phi_dist <- function(
   if (!length(ids)) {
     stop("No valid cluster IDs found in `clusters` (after filtering to 1..",
          n_nodes, ").")
+  }
+
+  ## ---- filter by min_phi (Cluster.height threshold) -----------------------
+  keep_phi <- H[ids] >= min_phi
+  if (!any(keep_phi)) {
+    stop("No clusters with `Cluster.height >= min_phi` (", min_phi,
+         ") among the requested nodes.")
+  }
+  if (!all(keep_phi)) {
+    dropped <- paste0("c_", ids[!keep_phi])
+    warning("Dropping clusters below `min_phi` (", min_phi, "): ",
+            paste(dropped, collapse = ", "))
+    ids <- ids[keep_phi]
   }
 
   ## ---- map node IDs to columns of Phi_pos ---------------------------------

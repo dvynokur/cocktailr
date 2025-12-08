@@ -4,13 +4,14 @@
 \alias{cluster_phi_dist}
 \title{Distance between Cocktail clusters based on species fidelity (φ)}
 \usage{
-cluster_phi_dist(x, clusters = NULL)
+cluster_phi_dist(x, clusters = NULL, min_phi = 0.2)
 }
 \arguments{
 \item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
 containing at least:
 \itemize{
-\item \code{Cluster.species} — nodes × species (0/1), and
+\item \code{Cluster.species} — nodes × species (0/1),
+\item \code{Cluster.height} — numeric vector of merge φ for each node, and
 \item \code{Species.cluster.phi} — species × nodes Option A φ-matrix.
 }
 Note: \code{Species.cluster.phi} is only present if
@@ -21,7 +22,14 @@ numeric vector of node indices (e.g. \code{c(12, 27)}) or a character vector
 of node labels (e.g. \code{c("c_12", "c_27")}). Each element refers to a
 single internal node; no grouping/union is performed.
 If \code{NULL} or missing, \strong{all} internal nodes
-\code{1:nrow(x$Cluster.species)} are used.}
+\code{1:nrow(x$Cluster.species)} are candidates.}
+
+\item{min_phi}{Numeric scalar; minimum merge φ (cluster height) required for a
+node to be retained. Default \code{0.2}. Nodes whose corresponding
+\code{x$Cluster.height} value is \emph{strictly less} than \code{min_phi}
+are dropped before computing the φ-based distance. If, after applying
+\code{clusters} and \code{min_phi}, fewer than two nodes remain, an error
+is raised.}
 }
 \value{
 A \code{\link[stats]{dist}} object of pairwise distances between the clusters.
@@ -48,6 +56,9 @@ species with membership 1 in \code{x$Cluster.species[k,]}.
 \eqn{S_k}. All negative φ values are set to 0 beforehand, so only
 positive fidelity contributes.
 }
+
+Only nodes with \code{x$Cluster.height >= min_phi} are retained for distance
+computation (after any user-specified filtering via \code{clusters}).
 
 For any pair of clusters \eqn{A,B}, define:
 

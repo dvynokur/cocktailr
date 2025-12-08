@@ -12,7 +12,7 @@
 #' @param x A Cocktail object (list) with components
 #'   \code{Cluster.merged} and \code{Cluster.height} as produced by
 #'   \code{\link{cocktail_cluster}()}.
-#' @param phi Numeric scalar between 0 and 1 specifying the \eqn{\phi} cut level.
+#' @param phi_cut Numeric scalar between 0 and 1 specifying the \eqn{\phi} cut level.
 #' @param as_labels Logical; if \code{TRUE} (default) return character labels
 #'   like \code{"c_12"}. If \code{FALSE}, return integer node IDs.
 #'
@@ -24,7 +24,7 @@
 #' @details
 #' The function:
 #' \enumerate{
-#'   \item Finds all nodes whose height satisfies \code{Cluster.height >= phi}.
+#'   \item Finds all nodes whose height satisfies \code{Cluster.height >= phi_cut}.
 #'   \item Looks at their children in \code{Cluster.merged}.
 #'   \item Removes any node that appears as a child of another node that also
 #'         meets the cut.
@@ -37,7 +37,7 @@
 #'
 #' @seealso \code{\link{assign_releves}}, \code{\link{cocktail_cluster}}
 #' @export
-clusters_at_cut <- function(x, phi, as_labels = TRUE) {
+clusters_at_cut <- function(x, phi_cut, as_labels = TRUE) {
   if (!is.list(x) || !all(c("Cluster.merged", "Cluster.height") %in% names(x))) {
     stop("`x` must be a Cocktail object with components ",
          "`Cluster.merged` and `Cluster.height` (from cocktail_cluster()).")
@@ -46,11 +46,11 @@ clusters_at_cut <- function(x, phi, as_labels = TRUE) {
   CM <- x$Cluster.merged
   H  <- x$Cluster.height
 
-  if (!is.numeric(phi) || length(phi) != 1L || !is.finite(phi) || phi < 0 || phi > 1) {
-    stop("`phi` must be a single number between 0 and 1.")
+  if (!is.numeric(phi_cut) || length(phi_cut) != 1L || !is.finite(phi_cut) || phi_cut < 0 || phi_cut > 1) {
+    stop("`phi_cut` must be a single number between 0 and 1.")
   }
 
-  idx <- which(H >= phi)
+  idx <- which(H >= phi_cut)
   if (!length(idx)) {
     return(if (as_labels) character(0) else integer(0))
   }

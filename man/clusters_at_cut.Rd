@@ -4,14 +4,14 @@
 \alias{clusters_at_cut}
 \title{Parent Cocktail clusters at a phi cut}
 \usage{
-clusters_at_cut(x, phi, as_labels = TRUE)
+clusters_at_cut(x, phi_cut, as_labels = TRUE)
 }
 \arguments{
 \item{x}{A Cocktail object (list) with components
 \code{Cluster.merged} and \code{Cluster.height} as produced by
 \code{\link{cocktail_cluster}()}.}
 
-\item{phi}{Numeric scalar between 0 and 1 specifying the \eqn{\phi} cut level.}
+\item{phi_cut}{Numeric scalar between 0 and 1 specifying the \eqn{\phi} cut level.}
 
 \item{as_labels}{Logical; if \code{TRUE} (default) return character labels
 like \code{"c_12"}. If \code{FALSE}, return integer node IDs.}
@@ -33,7 +33,7 @@ intersect that cut line.
 \details{
 The function:
 \enumerate{
-\item Finds all nodes whose height satisfies \code{Cluster.height >= phi}.
+\item Finds all nodes whose height satisfies \code{Cluster.height >= phi_cut}.
 \item Looks at their children in \code{Cluster.merged}.
 \item Removes any node that appears as a child of another node that also
 meets the cut.
