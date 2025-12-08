@@ -69,38 +69,6 @@ remotes::install_github("dvynokur/cocktailr")
 
 ---
 
-## Quick Start
-
-A minimal example that demonstrates a merge with **positive φ** and shows non-empty cluster results.
-
-```{r quick-start}
-library(cocktailr)
-
-# Tiny matrix with positive association between sp1 & sp2
-vm <- matrix(
-  c(1, 1,
-    1, 0,
-    0, 0),
-  nrow = 3, byrow = TRUE,
-  dimnames = list(paste0("plot", 1:3), c("sp1", "sp2"))
-)
-
-# Basic Cocktail clustering
-res <- cocktail_cluster(vm, progress = FALSE)
-
-# Merge height (phi) for the only internal node
-res$Cluster.height
-
-# Parent clusters at phi >= 0.3
-labs <- clusters_at_cut(res, phi = 0.3)
-labs
-
-# Topological species sets for those clusters
-species_in_clusters(res, labels = labs)
-```
-
----
-
 ## Typical workflow
 
 A small end-to-end example on a toy **plots × species** matrix, showing:
@@ -110,21 +78,27 @@ A small end-to-end example on a toy **plots × species** matrix, showing:
 3. Selecting clusters at a φ cut.
 4. Diagnostic species lists.
 5. φ-based distances between clusters and grouping.
-6. Plot assignment using φ and cover.
+6. Plot assignment using φ and cover, optionally with grouped nodes.
 
 ```{r typical-workflow}
 library(cocktailr)
 
-# Toy plots × species matrix
-vm <- matrix(
-  c(1, 0, 1, 0, 1, 0,
-    0, 1, 0, 1, 0, 1,
-    1, 1, 0, 0, 1, 0,
-    0, 0, 1, 1, 0, 0),
-  nrow = 4, byrow = TRUE,
+# Toy plots × species matrix with percentage cover
+vm <- matrix( 
+  c(
+    70,60,50, 5,  0, 0,10, 0,
+    65,55,45,10,  5, 0, 0, 0,
+    60,50,40, 5,  0,10, 0, 0,
+    10, 5, 0,60,50,40,10, 0,
+     5,10, 0,55,45,35, 0, 5,
+     0, 5,10,50,40,30, 0,10,
+     5, 0, 0,10, 0, 5,60,50,
+     0, 0, 5, 0,10, 0,55,45
+  ),
+  nrow = 8, byrow = TRUE,
   dimnames = list(
-    paste0("plot", 1:4),
-    paste0("sp",   1:6)
+    paste0("plot", 1:8),
+    paste0("sp",   1:8)
   )
 )
 
@@ -132,8 +106,8 @@ vm <- matrix(
 res <- cocktail_cluster(
   vegmatrix           = vm,
   progress            = FALSE,
-  plot_values         = "rel_cover",     # keeps cover-based Plot.cluster
-  species_cluster_phi = TRUE             # computes Species.cluster.phi
+  plot_values         = "rel_cover",   # keeps cover-based Plot.cluster
+  species_cluster_phi = TRUE           # computes Species.cluster.phi
 )
 
 names(res)
@@ -146,7 +120,7 @@ names(res)
 cocktail_plot(
   x              = res,
   file           = NULL,       # RStudio Plots pane / current device
-  phi_cut        = 0.3,
+  phi_cut        = 0.25,
   label_clusters = TRUE,
   cex_species    = 0.9
 )
@@ -155,7 +129,7 @@ cocktail_plot(
 ### 2. Select parent clusters at a φ cut
 
 ```{r typical-clusters-at-cut}
-phi_cut <- 0.3
+phi_cut <- 0.25
 
 parent_labels <- clusters_at_cut(
   x         = res,
@@ -195,24 +169,48 @@ diag_sp_phi
 
 ### 4. φ-based distances between clusters
 
-Compute a distance matrix between clusters based on species fidelity profiles:
+Compute a distance matrix between clusters based on species fidelity profiles.  
+Here we include all nodes with `Cluster.height >= 0.1` to get a richer hierarchy for *hclust*:
 
-```{r typical-phi-dist, eval=FALSE}
+```{r typical-phi-dist}
 D <- cluster_phi_dist(
-  x        = res,
-  clusters = parent_labels   # could also be node IDs, e.g. c(5, 12, 18)
+  x       = res,
+  min_phi = 0.1          # keep nodes with merge phi >= 0.1
 )
 
 D
 
-# Example: hierarchical clustering of clusters
+# Hierarchical clustering of clusters
 hc_nodes <- hclust(D, method = "average")
-plot(hc_nodes, main = "Cluster dendrogram (phi-based distance)")
+
+plot(hc_nodes, main = "Cluster dendrogram (phi-based distance)", cex = 0.7)
+rect.hclust(hc_nodes, k = 2, border = 2)
+
+grp_nodes <- cutree(hc_nodes, k = 2)
+grp_nodes
+table(grp_nodes)
+
+# Build node groups as character labels ("c_1", "c_2", …) per group
+node_groups <- split(names(grp_nodes), grp_nodes)
+node_groups
 ```
 
-You can inspect a similar tree in your own data and decide to merge similar parent clusters if desired.
+### 5. Visualise grouped nodes on the Cocktail dendrogram
 
-### 5. Assign plots (relevés) to groups
+We can use `clusters = node_groups` to show union groups as coloured bands and label cluster IDs:
+
+```{r typical-cocktail-groups}
+cocktail_plot(
+  x              = res,
+  clusters       = node_groups,
+  label_clusters = TRUE,
+  cex_species    = 0.9
+)
+```
+
+Within each group, if both an ancestor and a descendant node are present, only the **topmost** (ancestor) is used for elbow labelling and band placement; all valid IDs can still contribute labels at φ = 0 where their branches cross the baseline.
+
+### 6. Assign plots (relevés) to groups
 
 Use `assign_releves()` with one of the strategies:
 
@@ -241,7 +239,7 @@ table(assign_phi)
 
 The returned vector is named by plot ID and contains:
 
-- group labels like `"g_5"` (or combinations if you defined union groups);
+- group labels like `"g_5"` or combined node IDs if you defined union groups;
 - `"+"` for ties between groups;
 - `"-"` for groups that were collapsed by `min_group_size`;
 - `NA` when no group wins according to the chosen strategy.
@@ -257,7 +255,7 @@ If you have a header table `hea` with a column `releve_number`, you can add mult
 ```{r attach-assignments, eval=FALSE}
 library(dplyr)
 
-# example strategies you want as separate columns
+# Example strategies you want as separate columns
 strategies <- c("count", "cover", "phi_topo", "phi_cover_topo", "phi_cover")
 
 hea2 <- hea
@@ -267,19 +265,19 @@ for (s in strategies) {
     x              = res,
     vegmatrix      = vm,
     strategy       = s,
-    phi_cut        = 0.3,
-    min_phi        = 0.2,
+    phi_cut        = 0.25,
+    min_phi        = 0.20,
     min_group_size = 2
   )
 
-  # align by releve_number using the names of rel_assigned
+  # Align by releve_number using the names of rel_assigned
   idx <- match(hea2$releve_number, as.integer(names(rel_assigned)))
 
   colname <- paste0("grp_", s)  # e.g. "grp_count", "grp_cover", ...
 
   hea2[[colname]] <- rel_assigned[idx]
 
-  # optional: turn "-" into NA instead of a literal dash
+  # Optional: turn "-" into NA instead of a literal dash
   # hea2[[colname]][hea2[[colname]] == "-"] <- NA_character_
 }
 

@@ -37,7 +37,8 @@
 #'     \item else if \code{phi_cut} is supplied, label the clusters at
 #'           the \eqn{\phi\_cut} level (where vertical branches cross the
 #'           dashed line);
-#'     \item else, label all internal nodes.
+#'     \item else, label all internal nodes, with nodes whose vertical
+#'           branch crosses \code{y = 0} labelled only once at \code{y = 0}.
 #'   }
 #'   Labels are numeric node IDs.
 #' @param clusters Optional selection of clusters (nodes) to be shown as
@@ -725,11 +726,82 @@ cocktail_plot <- function(
     hit_nodes <- which(x1 >= x_from & x0 <= x_to)
     if (!length(hit_nodes)) return(invisible(NULL))
 
-    xm <- numeric(length(hit_nodes))
-    ym <- numeric(length(hit_nodes))
+    ## C1: labels at y = 0 for nodes whose vertical branch crosses y = 0
+    ids_crossing0_page <- integer(0)
+    x_phi0 <- numeric(0)
+    y_phi0 <- numeric(0)
+    lab0   <- integer(0)
 
-    for (k in seq_along(hit_nodes)) {
-      i_node <- hit_nodes[k]
+    for (i_node in hit_nodes) {
+      if (is.na(i_node) || i_node < 1L || i_node > length(child_parent_row))
+        next
+      p <- child_parent_row[i_node]
+      if (is.na(p)) next  # no parent -> no vertical branch
+
+      side <- child_leg_side[i_node]
+      if (side == "L") {
+        x_leg  <- Pos[p, "lx"]
+        y0_leg <- Pos[p, "ly0"]
+        y1_leg <- Pos[p, "ly1"]
+      } else if (side == "R") {
+        x_leg  <- Pos[p, "rx"]
+        y0_leg <- Pos[p, "ry0"]
+        y1_leg <- Pos[p, "ry1"]
+      } else {
+        next
+      }
+
+      # does this vertical branch cross y=0?
+      if (min(y0_leg, y1_leg) <= 0 && max(y0_leg, y1_leg) >= 0) {
+        if (x_leg < x_from || x_leg > x_to) next
+        x_phi0 <- c(x_phi0, x_leg)
+        y_phi0 <- c(y_phi0, 0)
+        lab0   <- c(lab0, i_node)
+      }
+    }
+
+    if (length(x_phi0)) {
+      df0 <- data.frame(
+        x = x_phi0,
+        y = y_phi0,
+        label = lab0,
+        stringsAsFactors = FALSE
+      )
+
+      df0_keep <- filter_non_overlapping(df0, rx_d, ry_d)
+      if (nrow(df0_keep) < nrow(df0)) {
+        overlap_dropped <<- TRUE
+      }
+
+      if (nrow(df0_keep) > 0) {
+        ids_crossing0_page <- unique(df0_keep$label)
+
+        graphics::symbols(
+          df0_keep$x, df0_keep$y,
+          circles = rep(1, nrow(df0_keep)),
+          inches  = circle_inch,
+          add     = TRUE, bg = "white", fg = "black", lwd = 0.6
+        )
+        graphics::text(
+          df0_keep$x, df0_keep$y,
+          labels = df0_keep$label,
+          cex = cex_clusters
+        )
+      }
+    }
+
+    ## C2: elbow labels for all other internal nodes on this page
+    node_ids <- hit_nodes
+    if (length(ids_crossing0_page)) {
+      node_ids <- setdiff(node_ids, ids_crossing0_page)
+    }
+    if (!length(node_ids)) return(invisible(NULL))
+
+    xm <- numeric(length(node_ids))
+    ym <- numeric(length(node_ids))
+
+    for (k in seq_along(node_ids)) {
+      i_node <- node_ids[k]
       p_node <- parent_idx[i_node]
 
       if (!is.na(p_node)) {
@@ -750,13 +822,13 @@ cocktail_plot <- function(
       ym[k] <- y_lab
     }
 
-    keep <- which(xm >= x_from & xm <= x_to)
+    keep <- which(xm >= x_from & xm <= x_to & !is.na(xm) & !is.na(ym))
     if (!length(keep)) return(invisible(NULL))
 
     df <- data.frame(
       x = xm[keep],
       y = ym[keep],
-      label = hit_nodes[keep],
+      label = node_ids[keep],
       stringsAsFactors = FALSE
     )
 

@@ -5,7 +5,6 @@ cocktailr
   - [Overview](#overview)
   - [Background](#background)
   - [Installation](#installation)
-  - [Quick Start](#quick-start)
   - [Typical workflow](#typical-workflow)
     - [1. Visualise the dendrogram](#1-visualise-the-dendrogram)
     - [2. Select parent clusters at a φ
@@ -14,8 +13,10 @@ cocktailr
       clusters](#3-diagnostic-species-for-parent-clusters)
     - [4. φ-based distances between
       clusters](#4-φ-based-distances-between-clusters)
-    - [5. Assign plots (relevés) to
-      groups](#5-assign-plots-relevés-to-groups)
+    - [5. Visualise grouped nodes on the Cocktail
+      dendrogram](#5-visualise-grouped-nodes-on-the-cocktail-dendrogram)
+    - [6. Assign plots (relevés) to
+      groups](#6-assign-plots-relevés-to-groups)
     - [(Optional) Attach assignments to a header data
       frame](#optional-attach-assignments-to-a-header-data-frame)
   - [Reference](#reference)
@@ -84,43 +85,6 @@ remotes::install_github("dvynokur/cocktailr")
 
 ------------------------------------------------------------------------
 
-## Quick Start
-
-A minimal example that demonstrates a merge with **positive φ** and
-shows non-empty cluster results.
-
-``` r
-library(cocktailr)
-
-# Tiny matrix with positive association between sp1 & sp2
-vm <- matrix(
-  c(1, 1,
-    1, 0,
-    0, 0),
-  nrow = 3, byrow = TRUE,
-  dimnames = list(paste0("plot", 1:3), c("sp1", "sp2"))
-)
-
-# Basic Cocktail clustering
-res <- cocktail_cluster(vm, progress = FALSE)
-
-# Merge height (phi) for the only internal node
-res$Cluster.height
-#> [1] 0.5
-
-# Parent clusters at phi >= 0.3
-labs <- clusters_at_cut(res, phi = 0.3)
-labs
-#> [1] "c_1"
-
-# Topological species sets for those clusters
-species_in_clusters(res, labels = labs)
-#> $c_1
-#> [1] "sp1" "sp2"
-```
-
-------------------------------------------------------------------------
-
 ## Typical workflow
 
 A small end-to-end example on a toy **plots × species** matrix, showing:
@@ -130,21 +94,27 @@ A small end-to-end example on a toy **plots × species** matrix, showing:
 3.  Selecting clusters at a φ cut.
 4.  Diagnostic species lists.
 5.  φ-based distances between clusters and grouping.
-6.  Plot assignment using φ and cover.
+6.  Plot assignment using φ and cover, optionally with grouped nodes.
 
 ``` r
 library(cocktailr)
 
-# Toy plots × species matrix
-vm <- matrix(
-  c(1, 0, 1, 0, 1, 0,
-    0, 1, 0, 1, 0, 1,
-    1, 1, 0, 0, 1, 0,
-    0, 0, 1, 1, 0, 0),
-  nrow = 4, byrow = TRUE,
+# Toy plots × species matrix with percentage cover
+vm <- matrix( 
+  c(
+    70,60,50, 5,  0, 0,10, 0,
+    65,55,45,10,  5, 0, 0, 0,
+    60,50,40, 5,  0,10, 0, 0,
+    10, 5, 0,60,50,40,10, 0,
+     5,10, 0,55,45,35, 0, 5,
+     0, 5,10,50,40,30, 0,10,
+     5, 0, 0,10, 0, 5,60,50,
+     0, 0, 5, 0,10, 0,55,45
+  ),
+  nrow = 8, byrow = TRUE,
   dimnames = list(
-    paste0("plot", 1:4),
-    paste0("sp",   1:6)
+    paste0("plot", 1:8),
+    paste0("sp",   1:8)
   )
 )
 
@@ -152,8 +122,8 @@ vm <- matrix(
 res <- cocktail_cluster(
   vegmatrix           = vm,
   progress            = FALSE,
-  plot_values         = "rel_cover",     # keeps cover-based Plot.cluster
-  species_cluster_phi = TRUE             # computes Species.cluster.phi
+  plot_values         = "rel_cover",   # keeps cover-based Plot.cluster
+  species_cluster_phi = TRUE           # computes Species.cluster.phi
 )
 
 names(res)
@@ -169,7 +139,7 @@ names(res)
 cocktail_plot(
   x              = res,
   file           = NULL,       # RStudio Plots pane / current device
-  phi_cut        = 0.3,
+  phi_cut        = 0.25,
   label_clusters = TRUE,
   cex_species    = 0.9
 )
@@ -180,7 +150,7 @@ cocktail_plot(
 ### 2. Select parent clusters at a φ cut
 
 ``` r
-phi_cut <- 0.3
+phi_cut <- 0.25
 
 parent_labels <- clusters_at_cut(
   x         = res,
@@ -189,7 +159,7 @@ parent_labels <- clusters_at_cut(
 )
 
 parent_labels
-#> [1] "c_1" "c_3"
+#> [1] "c_2" "c_5"
 ```
 
 ### 3. Diagnostic species for parent clusters
@@ -203,11 +173,11 @@ diag_sp_topo <- species_in_clusters(
 )
 
 diag_sp_topo
-#> $c_1
-#> [1] "sp1" "sp5"
+#> $c_2
+#> [1] "sp1" "sp2" "sp4"
 #> 
-#> $c_3
-#> [1] "sp2" "sp4" "sp6"
+#> $c_5
+#> [1] "sp5" "sp6" "sp7" "sp8"
 ```
 
 With φ-based filtering and ranking (uses `Species.cluster.phi`):
@@ -222,40 +192,92 @@ diag_sp_phi <- species_in_clusters(
 )
 
 diag_sp_phi
-#> $c_1
-#>   species phi
-#> 1     sp1   1
-#> 2     sp5   1
+#> $c_2
+#>   species      phi
+#> 1     sp1 0.745356
+#> 2     sp2 0.745356
+#> 3     sp4 0.487950
 #> 
-#> $c_3
+#> $c_5
 #>   species       phi
-#> 1     sp6 1.0000000
-#> 2     sp2 0.5773503
-#> 3     sp4 0.5773503
+#> 1     sp8 0.7745967
+#> 2     sp5 0.4666667
+#> 3     sp6 0.4666667
+#> 4     sp7 0.2581989
 ```
 
 ### 4. φ-based distances between clusters
 
 Compute a distance matrix between clusters based on species fidelity
-profiles:
+profiles.  
+Here we include all nodes with `Cluster.height >= 0.1` to get a richer
+hierarchy for *hclust*:
 
 ``` r
 D <- cluster_phi_dist(
-  x        = res,
-  clusters = parent_labels   # could also be node IDs, e.g. c(5, 12, 18)
+  x       = res,
+  min_phi = 0.1          # keep nodes with merge phi >= 0.1
 )
 
 D
+#>            c_1        c_2        c_3        c_4
+#> c_2 0.20919762                                 
+#> c_3 1.00000000 1.00000000                      
+#> c_4 1.00000000 1.00000000 0.14608309           
+#> c_5 1.00000000 1.00000000 0.19892976 0.06566174
 
-# Example: hierarchical clustering of clusters
+# Hierarchical clustering of clusters
 hc_nodes <- hclust(D, method = "average")
-plot(hc_nodes, main = "Cluster dendrogram (phi-based distance)")
+
+plot(hc_nodes, main = "Cluster dendrogram (phi-based distance)", cex = 0.7)
+rect.hclust(hc_nodes, k = 2, border = 2)
 ```
 
-You can inspect a similar tree in your own data and decide to merge
-similar parent clusters if desired.
+<img src="man/figures/README-typical-phi-dist-1.png" width="100%" />
 
-### 5. Assign plots (relevés) to groups
+``` r
+
+grp_nodes <- cutree(hc_nodes, k = 2)
+grp_nodes
+#> c_1 c_2 c_3 c_4 c_5 
+#>   1   1   2   2   2
+table(grp_nodes)
+#> grp_nodes
+#> 1 2 
+#> 2 3
+
+# Build node groups as character labels ("c_1", "c_2", …) per group
+node_groups <- split(names(grp_nodes), grp_nodes)
+node_groups
+#> $`1`
+#> [1] "c_1" "c_2"
+#> 
+#> $`2`
+#> [1] "c_3" "c_4" "c_5"
+```
+
+### 5. Visualise grouped nodes on the Cocktail dendrogram
+
+We can use `clusters = node_groups` to show union groups as coloured
+bands and label cluster IDs:
+
+``` r
+cocktail_plot(
+  x              = res,
+  clusters       = node_groups,
+  label_clusters = TRUE,
+  cex_species    = 0.9
+)
+```
+
+<img src="man/figures/README-typical-cocktail-groups-1.png" width="100%" />
+
+Within each group, if both an ancestor and a descendant node are
+present, only the **topmost** (ancestor) is used for elbow labelling and
+band placement; all valid IDs can still contribute labels at φ = 0 where
+their branches cross the baseline.
+
+### 6. Assign plots (relevés) to groups
 
 Use `assign_releves()` with one of the strategies:
 
@@ -279,20 +301,20 @@ assign_phi <- assign_releves(
 )
 
 assign_phi
-#> plot1 plot2 plot3 plot4 
-#> "g_1" "g_3" "g_1"    NA 
+#> plot1 plot2 plot3 plot4 plot5 plot6 plot7 plot8 
+#> "g_2" "g_2" "g_2" "g_5" "g_5" "g_5" "g_5" "g_5" 
 #> attr(,"details")
 #> attr(,"details")$strategy
 #> [1] "phi_cover"
 #> 
 #> attr(,"details")$phi_cut
-#> [1] 0.3
+#> [1] 0.25
 #> 
 #> attr(,"details")$clusters
 #> NULL
 #> 
 #> attr(,"details")$groups_used
-#> [1] "g_1" "g_3"
+#> [1] "g_2" "g_5"
 #> 
 #> attr(,"details")$min_phi
 #> [1] 0.2
@@ -304,14 +326,14 @@ assign_phi
 #> character(0)
 table(assign_phi)
 #> assign_phi
-#> g_1 g_3 
-#>   2   1
+#> g_2 g_5 
+#>   3   5
 ```
 
 The returned vector is named by plot ID and contains:
 
-- group labels like `"g_5"` (or combinations if you defined union
-  groups);
+- group labels like `"g_5"` or combined node IDs if you defined union
+  groups;
 - `"+"` for ties between groups;
 - `"-"` for groups that were collapsed by `min_group_size`;
 - `NA` when no group wins according to the chosen strategy.
@@ -329,7 +351,7 @@ add multiple assignment strategies as new columns:
 ``` r
 library(dplyr)
 
-# example strategies you want as separate columns
+# Example strategies you want as separate columns
 strategies <- c("count", "cover", "phi_topo", "phi_cover_topo", "phi_cover")
 
 hea2 <- hea
@@ -339,19 +361,19 @@ for (s in strategies) {
     x              = res,
     vegmatrix      = vm,
     strategy       = s,
-    phi_cut        = 0.3,
-    min_phi        = 0.2,
+    phi_cut        = 0.25,
+    min_phi        = 0.20,
     min_group_size = 2
   )
 
-  # align by releve_number using the names of rel_assigned
+  # Align by releve_number using the names of rel_assigned
   idx <- match(hea2$releve_number, as.integer(names(rel_assigned)))
 
   colname <- paste0("grp_", s)  # e.g. "grp_count", "grp_cover", ...
 
   hea2[[colname]] <- rel_assigned[idx]
 
-  # optional: turn "-" into NA instead of a literal dash
+  # Optional: turn "-" into NA instead of a literal dash
   # hea2[[colname]][hea2[[colname]] == "-"] <- NA_character_
 }
 

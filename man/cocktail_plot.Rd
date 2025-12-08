@@ -54,7 +54,8 @@ clusters whose vertical branch crosses \code{y = 0} are labelled
 \item else if \code{phi_cut} is supplied, label the clusters at
 the \eqn{\phi\_cut} level (where vertical branches cross the
 dashed line);
-\item else, label all internal nodes.
+\item else, label all internal nodes, with nodes whose vertical
+branch crosses \code{y = 0} labelled only once at \code{y = 0}.
 }
 Labels are numeric node IDs.}
 
