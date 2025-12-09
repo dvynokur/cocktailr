@@ -49,10 +49,6 @@ The package implements:
   that combine covers, topology, and species–cluster φ
   (`assign_releves()`).
 
-Fuzzy / graded affinities are handled via the optional **species ×
-cluster φ matrix** (`Species.cluster.phi`) that `cocktail_cluster()` can
-compute when `species_cluster_phi = TRUE`.
-
 ------------------------------------------------------------------------
 
 ## Background
@@ -190,8 +186,7 @@ diag_sp_phi <- species_in_clusters(
   x                   = res,
   labels              = parent_labels,
   species_cluster_phi = TRUE,
-  min_phi             = 0.20,
-  top_k               = 10
+  min_phi             = 0.20
 )
 
 diag_sp_phi
@@ -265,7 +260,9 @@ node_groups
 ### 5. Visualise grouped nodes on the Cocktail dendrogram
 
 We can use `clusters = node_groups` to show union groups as coloured
-bands and label cluster IDs:
+bands and label cluster IDs. Within each group, if both an ancestor and
+a descendant node are present, only the **topmost** (ancestor) is used
+for labelling and band placement.
 
 ``` r
 cocktail_plot(
@@ -278,20 +275,17 @@ cocktail_plot(
 
 <img src="man/figures/README-typical-cocktail-groups-1.png" width="100%" />
 
-Within each group, if both an ancestor and a descendant node are
-present, only the **topmost** (ancestor) is used for elbow labelling and
-band placement; all valid IDs can still contribute labels at φ = 0 where
-their branches cross the baseline.
-
 ### 6. Assign plots (relevés) to groups
 
 Use `assign_releves()` with one of the strategies:
 
 - `"count"` – number of diagnostic species present.
-- `"cover"` – summed cover of diagnostic species.
+- `"cover"` – summed relative cover of diagnostic species.
 - `"phi_topo"` – sum of phi over topological species present.
-- `"phi_cover_topo"` – sum of cover × phi over topological species.
-- `"phi_cover"` – sum of cover × phi for species with phi ≥ `min_phi`.
+- `"phi_cover_topo"` – sum of relative cover × phi over topological
+  species.
+- `"phi_cover"` – sum of relative cover × phi for species with phi ≥
+  `min_phi`.
 - `"phi"` – sum of phi for species with phi ≥ `min_phi`.
 
 Here we use `"phi_cover"` with the parent clusters at `phi_cut`:
@@ -336,13 +330,19 @@ table(assign_phi)
 #>   4   4
 ```
 
-The returned vector is named by plot ID and contains:
+The returned object is a named character vector (names = plot IDs). Each
+value is:
 
-- group labels like `"g_5"` or combined node IDs if you defined union
-  groups;
-- `"+"` for ties between groups;
-- `"-"` for groups that were collapsed by `min_group_size`;
-- `NA` when no group wins according to the chosen strategy.
+- a group label such as `"g_5"` for groups defined by a single node, or
+  `"g_5_12"` for union groups of multiple non-nested nodes;
+- `"+"` when there is an unresolved tie between groups;
+- `"-"` for groups that were collapsed because they contain fewer plots
+  than `min_group_size`;
+- `NA` when no group wins for that plot.
+
+For union groups that include both ancestors and descendants, only the
+**topmost** ancestor is kept within that group. In those cases, the
+label is just the ancestor ID (e.g. `"g_5"`), not a combined ID.
 
 You can then attach these assignments to your plot header / metadata
 table.
