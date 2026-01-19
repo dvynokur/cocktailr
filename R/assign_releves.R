@@ -4,7 +4,7 @@
 #' Assign plots to groups derived from a Cocktail tree using:
 #' \itemize{
 #'   \item \code{x$Plot.cluster} - cluster membership per plot (non-zero = member);
-#'   \item \code{x$Cluster.species} - topological species per node;
+#'   \item \code{x$Cluster.species} - node-constituent species per node;
 #'   \item \code{vegmatrix} - per-plot species covers (plots x species);
 #'   \item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}.
 #' }
@@ -14,14 +14,14 @@
 #' \describe{
 #'
 #' \item{\code{"count"}}{
-#'   For each cluster, count how many of its topological species are present
+#'   For each cluster, count how many of its node-constituent species are present
 #'   in the releve. The winner is the cluster with the largest count.
 #'   If several clusters share the same maximum, the plot is labeled \code{"+"}.
 #'   If no cluster has any species present, the plot gets \code{NA}.
 #' }
 #'
 #' \item{\code{"cover"}}{
-#'   For each cluster, sum the covers of its topological species that are
+#'   For each cluster, sum the covers of its node-constituent species that are
 #'   present in the releve. The winner is the cluster with the highest sum.
 #'   If there is a tie, use the number of species (as in \code{"count"})
 #'   as a tie-breaker; if still tied, label \code{"+"}. Plots with zero
@@ -31,20 +31,20 @@
 #'   issues a warning and automatically falls back to \code{strategy = "count"}.
 #' }
 #'
-#' \item{\code{"phi_topo"}}{
+#' \item{\code{"phi_node"}}{
 #'   Requires \code{x$Species.cluster.phi}. For each cluster and species,
 #'   define \eqn{\phi(s,g)} as the maximum of \eqn{\phi} across that group's
 #'   nodes (negatives set to 0). For a given plot, restrict to the cluster's
-#'   topological species that are present in the releve and sum their
+#'   node-constituent species that are present in the releve and sum their
 #'   \eqn{\phi} values. The winner has the largest such sum. Ties are broken
 #'   first by total cover of these species, then by their species count;
 #'   if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
 #' }
 #'
-#' \item{\code{"phi_cover_topo"}}{
-#'   Requires \code{x$Species.cluster.phi}. As in \code{"phi_topo"}, use
-#'   the cluster's topological species only, but score each cluster in a plot
-#'   by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its topological
+#' \item{\code{"phi_cover_node"}}{
+#'   Requires \code{x$Species.cluster.phi}. As in \code{"phi_node"}, use
+#'   the cluster's node-constituent species only, but score each cluster in a plot
+#'   by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its node-constituent
 #'   species present in the releve. The winner has the largest score.
 #'   If there is a tie, use the number of these species as a tie-breaker;
 #'   if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
@@ -84,14 +84,14 @@
 #' @param x A Cocktail object (list) with components
 #'   \code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height},
 #'   and \code{Plot.cluster} (e.g. from \code{\link{cocktail_cluster}()}).
-#'   For strategies \code{"phi_topo"}, \code{"phi_cover_topo"},
+#'   For strategies \code{"phi_node"}, \code{"phi_cover_node"},
 #'   \code{"phi_cover"}, and \code{"phi"}, \code{x$Species.cluster.phi}
 #'   should be present; otherwise a fallback is used.
 #' @param vegmatrix Numeric matrix or data.frame of covers (plots x species).
 #'   Row names must include the plots in \code{x}; column names must include
 #'   the species used in \code{x}. Missing values are treated as 0.
 #' @param strategy One of
-#'   \code{c("count","cover","phi_topo","phi_cover_topo","phi_cover","phi")}.
+#'   \code{c("count","cover","phi_node","phi_cover_node","phi_cover","phi")}.
 #' @param phi_cut Numeric in (0,1). Height cut used to choose parent clusters
 #'   (topmost nodes with height >= \code{phi_cut}) when \code{clusters} is not given.
 #' @param clusters Optional selection of clusters instead of \code{phi_cut}.
@@ -116,7 +116,7 @@
 assign_releves <- function(
     x,
     vegmatrix,
-    strategy       = c("count","cover","phi_topo","phi_cover_topo","phi_cover","phi"),
+    strategy       = c("count","cover","phi_node","phi_cover_node","phi_cover","phi"),
     phi_cut        = 0.30,
     clusters       = NULL,   # vector or list (for unions)
     min_phi        = 0.2,
@@ -266,7 +266,7 @@ assign_releves <- function(
   is_binary_PC <- .is_binary_cluster(PC)
 
   # phi-based strategies: if phi matrix missing -> warn and fallback
-  if (strategy %in% c("phi_topo","phi_cover_topo","phi_cover","phi") &&
+  if (strategy %in% c("phi_node","phi_cover_node","phi_cover","phi") &&
       (!("Species.cluster.phi" %in% names(x)) || is.null(x$Species.cluster.phi))) {
 
     fallback <- if (is_binary_PC) "count" else "cover"
@@ -350,7 +350,7 @@ assign_releves <- function(
   Phi_group_list <- NULL
   Phi_sets_phi   <- NULL
 
-  if (strategy %in% c("phi_topo","phi_cover_topo","phi_cover","phi")) {
+  if (strategy %in% c("phi_node","phi_cover_node","phi_cover","phi")) {
     Phi <- x$Species.cluster.phi
     if (is.null(Phi) || !is.matrix(Phi)) {
       stop("Internal error: phi-based strategy chosen but `x$Species.cluster.phi` is missing or not a matrix.")
@@ -486,7 +486,7 @@ assign_releves <- function(
         next
       }
 
-      if (strategy == "phi_topo") {
+      if (strategy == "phi_node") {
         phi_s <- Phi_group_list[[g]]
         if (is.null(phi_s) || !length(phi_s)) next
         if (!length(topo_sp)) next
@@ -505,7 +505,7 @@ assign_releves <- function(
         next
       }
 
-      if (strategy == "phi_cover_topo") {
+      if (strategy == "phi_cover_node") {
         phi_s <- Phi_group_list[[g]]
         if (is.null(phi_s) || !length(phi_s)) next
         if (!length(topo_sp)) next

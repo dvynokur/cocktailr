@@ -4,7 +4,15 @@
 \alias{cluster_phi_dist}
 \title{Distance between Cocktail clusters based on species fidelity (phi)}
 \usage{
-cluster_phi_dist(x, clusters = NULL, min_phi = 0.2)
+cluster_phi_dist(
+  x,
+  clusters = NULL,
+  min_phi = 0.2,
+  method = c("dot", "cosine", "pearson"),
+  phi_threshold = -1,
+  drop_nested_clusters = FALSE,
+  power_transform = TRUE
+)
 }
 \arguments{
 \item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
@@ -21,62 +29,83 @@ Note: \code{Species.cluster.phi} is only present if
 numeric vector of node indices (e.g. \code{c(12, 27)}) or a character vector
 of node labels (e.g. \code{c("c_12", "c_27")}). Each element refers to a
 single internal node; no grouping/union is performed.
-If \code{NULL} or missing, \strong{all} internal nodes
+If \code{NULL} or missing, all internal nodes
 \code{1:nrow(x$Cluster.species)} are candidates.}
 
 \item{min_phi}{Numeric scalar; minimum merge phi (cluster height) required for a
 node to be retained. Default \code{0.2}. Nodes whose corresponding
 \code{x$Cluster.height} value is \emph{strictly less} than \code{min_phi}
-are dropped before computing the phi-based distance. If, after applying
-\code{clusters} and \code{min_phi}, fewer than two nodes remain, an error
-is raised.}
+are dropped before computing the distance. If fewer than two nodes remain,
+an error is raised.}
+
+\item{method}{Similarity method used to compare cluster fidelity profiles on
+the selected species set:
+\itemize{
+\item \code{"dot"}: mean elementwise product (mean of \code{A * B}). Since
+phi values are in \eqn{[-1, 1]}, similarity is also in \eqn{[-1, 1]}.
+\item \code{"cosine"}: cosine similarity
+\eqn{\frac{A \cdot B}{\|A\|\|B\|}} (returns 0 if a norm is 0).
+\item \code{"pearson"}: Pearson correlation (returns 0 if undefined, if
+variance is 0, or if fewer than 2 species are available).
+}}
+
+\item{phi_threshold}{Numeric scalar; lower threshold applied to the \emph{source}
+cluster in each directional comparison. For \eqn{A\to B}, only species with
+\eqn{\phi(s,A) \ge \mathrm{phi\_threshold}} are used. Default \code{-1}.
+Practical settings:
+\itemize{
+\item \code{-1}: include the full profile (includes \eqn{\phi=-1} as well).
+\item \code{0}: use only non-negative (positive or zero) fidelities in the source cluster.
+\item \code{0.2}: focus on meaningfully associated species in the source cluster.
+}
+Clusters with no species meeting this threshold are dropped before distance
+computation (with a warning).}
+
+\item{drop_nested_clusters}{Logical. If \code{TRUE}, clusters whose species
+sets are strict subsets of other retained clusters are dropped (based
+on \code{x$Cluster.species}). If \code{FALSE} (default), nested clusters
+are retained.}
+
+\item{power_transform}{Logical. If \code{TRUE} (default), apply a signed power
+transform with \eqn{\gamma=2} to phi values before computing similarities:
+\eqn{\tilde{\phi}=\mathrm{sign}(\phi)|\phi|^{2}}. If \code{FALSE}, use raw phi.}
 }
 \value{
-A \code{\link[stats]{dist}} object of pairwise distances between the clusters.
-No additional attributes are attached; you can pass the result directly to
-\code{\link[stats]{hclust}} or other clustering/ordination functions.
+A \code{\link[stats]{dist}} object of pairwise distances between clusters.
 }
 \description{
-Compute a phi-based distance between a set of Cocktail clusters (internal nodes).
-For each cluster, a species fidelity profile is taken directly from
-\code{x$Species.cluster.phi}, restricted to the cluster's topological species
-set. Pairwise distances between clusters are then derived from these profiles
-via a symmetric similarity measure.
+Compute a phi-based distance between a set of Cocktail clusters (internal nodes)
+using species fidelity profiles taken directly from \code{x$Species.cluster.phi}.
+
+For each pair of clusters \eqn{A,B}, similarity is computed twice (\eqn{A\to B}
+and \eqn{B\to A}) and then averaged. In the directional comparison \eqn{A\to B},
+only species with \eqn{\phi(s,A) \ge \mathrm{phi\_threshold}} are used; the
+corresponding \eqn{\phi(s,B)} values are taken as-is (can be negative). The
+final similarity is:
+\deqn{
+\mathrm{sim}(A,B)=\frac{1}{2}\left[\mathrm{sim}(A\to B)+\mathrm{sim}(B\to A)\right],
+}
+and the distance is \eqn{d(A,B)=1-\mathrm{sim}(A,B)}.
+
+Similarities are computed using one of three methods: \code{"dot"},
+\code{"cosine"}, or \code{"pearson"}.
+
+Optionally, a signed power transform is applied to phi values prior to computing
+similarities to downweight near-zero values:
+\deqn{\tilde{\phi}=\mathrm{sign}(\phi)\,|\phi|^{\gamma}}
+with \eqn{\gamma = 2}.
 }
 \details{
-Let \eqn{\phi(s, k)} be the phi-coefficient between species \eqn{s}
-and cluster \eqn{k}, stored in \code{x$Species.cluster.phi}. For each
-cluster \eqn{k}:
+Let \eqn{\phi(s,k)} be the phi-coefficient between species \eqn{s} and cluster
+\eqn{k} stored in \code{x$Species.cluster.phi}. For clusters \eqn{A,B}, define
+the directional species subset \eqn{S_A=\{s:\phi(s,A)\ge \mathrm{phi\_threshold}\}}
+and compute \eqn{\mathrm{sim}(A\to B)} by the chosen \code{method} comparing
+\eqn{\phi(S_A,A)} to \eqn{\phi(S_A,B)} (optionally after power transformation).
 
-\enumerate{
-\item Its \strong{topological species set} \eqn{S_k} is defined as the set of
-species with membership 1 in \code{x$Cluster.species[k,]}.
-\item A species fidelity profile \eqn{\phi_k(s)} is taken as
-\eqn{\phi(s,k)} for \eqn{s \in S_k}, and 0 for species outside
-\eqn{S_k}. All negative phi values are set to 0 beforehand, so only
-positive fidelity contributes.
-}
-
-Only nodes with \code{x$Cluster.height >= min_phi} are retained for distance
-computation (after any user-specified filtering via \code{clusters}).
-
-For any pair of clusters \eqn{A,B}, define:
-
-\deqn{
-  \mathrm{sim}(A \to B) =
-    \frac{\sum_{s \in S_A} \phi_B(s)}
-         {\sum_{s \in S_A} \phi_A(s)}
-}
-
-with the convention that if the denominator is 0 (no positive phi for
-\eqn{A}), then \eqn{\mathrm{sim}(A\to B) = 0}. The symmetric similarity is
-
-\deqn{
-  \mathrm{sim}_{\mathrm{sym}}(A,B) =
-    \frac{1}{2}\left[ \mathrm{sim}(A\to B) + \mathrm{sim}(B\to A) \right],
-}
-
-and the distance is \eqn{d(A,B) = 1 - \mathrm{sim}_{\mathrm{sym}}(A,B)}.
+Distances are returned as \eqn{d(A,B)=1-\mathrm{sim}(A,B)}. For \code{"cosine"}
+and \code{"pearson"}, similarities lie in \eqn{[-1, 1]}, hence distances lie
+in \eqn{[0, 2]}. For \code{"dot"} as defined here (mean elementwise product),
+similarity also lies in \eqn{[-1, 1]} and distance in \eqn{[0, 2]}.
 }
 \seealso{
 \code{\link{cocktail_cluster}}, \code{\link{clusters_at_cut}}

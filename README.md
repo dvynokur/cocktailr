@@ -123,9 +123,8 @@ res <- cocktail_cluster(
 )
 
 names(res)
-#> [1] "Cluster.species"     "Cluster.info"        "Plot.cluster"       
-#> [4] "Cluster.merged"      "Cluster.height"      "Species.cluster.phi"
-#> [7] "species"             "plots"
+#> [1] "Cluster.species"     "Cluster.info"        "Plot.cluster"        "Cluster.merged"      "Cluster.height"     
+#> [6] "Species.cluster.phi" "species"             "plots"
 ```
 
 ### 1. Visualise the dendrogram
@@ -222,11 +221,11 @@ D <- cluster_phi_dist(
 
 D
 #>           c_1       c_2       c_3       c_4       c_5
-#> c_2 1.0000000                                        
-#> c_3 1.0000000 1.0000000                              
-#> c_4 1.0000000 1.0000000 0.1234754                    
-#> c_5 1.0000000 1.0000000 0.2597516 0.1440071          
-#> c_6 0.2344706 0.3527497 1.0000000 1.0000000 1.0000000
+#> c_2 0.9939541                                        
+#> c_3 1.1091837 1.0559572                              
+#> c_4 1.1091837 1.0559572 0.8336476                    
+#> c_5 1.1359380 1.0676871 0.8703734 0.8703734          
+#> c_6 0.8640620 0.9323129 1.1296266 1.1296266 1.1393197
 
 # Hierarchical clustering of clusters
 hc_nodes <- hclust(D, method = "average")

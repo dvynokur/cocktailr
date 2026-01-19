@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style type="text/css">
+@font-face {
+font-family: octicons-link;
+src: url(data:font/woff;charset=utf-8;base64,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) format('woff');
+}
+body {
+-webkit-text-size-adjust: 100%;
+text-size-adjust: 100%;
+color: #333;
+font-family: "Helvetica Neue", Helvetica, "Segoe UI", Arial, freesans, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+font-size: 16px;
+line-height: 1.6;
+word-wrap: break-word;
+}
+a {
+background-color: transparent;
+}
+a:active,
+a:hover {
+outline: 0;
+}
+strong {
+font-weight: bold;
+}
+h1 {
+font-size: 2em;
+margin: 0.67em 0;
+}
+img {
+border: 0;
+}
+hr {
+box-sizing: content-box;
+height: 0;
+}
+pre {
+overflow: auto;
+}
+code,
+kbd,
+pre {
+font-family: monospace, monospace;
+font-size: 1em;
+}
+input {
+color: inherit;
+font: inherit;
+margin: 0;
+}
+html input[disabled] {
+cursor: default;
+}
+input {
+line-height: normal;
+}
+input[type="checkbox"] {
+box-sizing: border-box;
+padding: 0;
+}
+table {
+border-collapse: collapse;
+border-spacing: 0;
+}
+td,
+th {
+padding: 0;
+}
+* {
+box-sizing: border-box;
+}
+input {
+font: 13px / 1.4 Helvetica, arial, nimbussansl, liberationsans, freesans, clean, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+a {
+color: #4078c0;
+text-decoration: none;
+}
+a:hover,
+a:active {
+text-decoration: underline;
+}
+hr {
+height: 0;
+margin: 15px 0;
+overflow: hidden;
+background: transparent;
+border: 0;
+border-bottom: 1px solid #ddd;
+}
+hr:before {
+display: table;
+content: "";
+}
+hr:after {
+display: table;
+clear: both;
+content: "";
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+margin-top: 15px;
+margin-bottom: 15px;
+line-height: 1.1;
+}
+h1 {
+font-size: 30px;
+}
+h2 {
+font-size: 21px;
+}
+h3 {
+font-size: 16px;
+}
+h4 {
+font-size: 14px;
+}
+h5 {
+font-size: 12px;
+}
+h6 {
+font-size: 11px;
+}
+blockquote {
+margin: 0;
+}
+ul,
+ol {
+padding: 0;
+margin-top: 0;
+margin-bottom: 0;
+}
+ol ol,
+ul ol {
+list-style-type: lower-roman;
+}
+ul ul ol,
+ul ol ol,
+ol ul ol,
+ol ol ol {
+list-style-type: lower-alpha;
+}
+dd {
+margin-left: 0;
+}
+code {
+font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
+font-size: 12px;
+}
+pre {
+margin-top: 0;
+margin-bottom: 0;
+font: 12px Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+.select::-ms-expand {
+opacity: 0;
+}
+.octicon {
+font: normal normal normal 16px/1 octicons-link;
+display: inline-block;
+text-decoration: none;
+text-rendering: auto;
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+-webkit-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;
+}
+.octicon-link:before {
+content: '\f05c';
+}
+.markdown-body:before {
+display: table;
+content: "";
+}
+.markdown-body:after {
+display: table;
+clear: both;
+content: "";
+}
+.markdown-body>*:first-child {
+margin-top: 0 !important;
+}
+.markdown-body>*:last-child {
+margin-bottom: 0 !important;
+}
+a:not([href]) {
+color: inherit;
+text-decoration: none;
+}
+.anchor {
+display: inline-block;
+padding-right: 2px;
+margin-left: -18px;
+}
+.anchor:focus {
+outline: none;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+margin-top: 1em;
+margin-bottom: 16px;
+font-weight: bold;
+line-height: 1.4;
+}
+h1 .octicon-link,
+h2 .octicon-link,
+h3 .octicon-link,
+h4 .octicon-link,
+h5 .octicon-link,
+h6 .octicon-link {
+color: #000;
+vertical-align: middle;
+visibility: hidden;
+}
+h1:hover .anchor,
+h2:hover .anchor,
+h3:hover .anchor,
+h4:hover .anchor,
+h5:hover .anchor,
+h6:hover .anchor {
+text-decoration: none;
+}
+h1:hover .anchor .octicon-link,
+h2:hover .anchor .octicon-link,
+h3:hover .anchor .octicon-link,
+h4:hover .anchor .octicon-link,
+h5:hover .anchor .octicon-link,
+h6:hover .anchor .octicon-link {
+visibility: visible;
+}
+h1 {
+padding-bottom: 0.3em;
+font-size: 2.25em;
+line-height: 1.2;
+border-bottom: 1px solid #eee;
+}
+h1 .anchor {
+line-height: 1;
+}
+h2 {
+padding-bottom: 0.3em;
+font-size: 1.75em;
+line-height: 1.225;
+border-bottom: 1px solid #eee;
+}
+h2 .anchor {
+line-height: 1;
+}
+h3 {
+font-size: 1.5em;
+line-height: 1.43;
+}
+h3 .anchor {
+line-height: 1.2;
+}
+h4 {
+font-size: 1.25em;
+}
+h4 .anchor {
+line-height: 1.2;
+}
+h5 {
+font-size: 1em;
+}
+h5 .anchor {
+line-height: 1.1;
+}
+h6 {
+font-size: 1em;
+color: #777;
+}
+h6 .anchor {
+line-height: 1.1;
+}
+p,
+blockquote,
+ul,
+ol,
+dl,
+table,
+pre {
+margin-top: 0;
+margin-bottom: 16px;
+}
+hr {
+height: 4px;
+padding: 0;
+margin: 16px 0;
+background-color: #e7e7e7;
+border: 0 none;
+}
+ul,
+ol {
+padding-left: 2em;
+}
+ul ul,
+ul ol,
+ol ol,
+ol ul {
+margin-top: 0;
+margin-bottom: 0;
+}
+li>p {
+margin-top: 16px;
+}
+dl {
+padding: 0;
+}
+dl dt {
+padding: 0;
+margin-top: 16px;
+font-size: 1em;
+font-style: italic;
+font-weight: bold;
+}
+dl dd {
+padding: 0 16px;
+margin-bottom: 16px;
+}
+blockquote {
+padding: 0 15px;
+color: #777;
+border-left: 4px solid #ddd;
+}
+blockquote>:first-child {
+margin-top: 0;
+}
+blockquote>:last-child {
+margin-bottom: 0;
+}
+table {
+display: block;
+width: 100%;
+overflow: auto;
+word-break: normal;
+word-break: keep-all;
+}
+table th {
+font-weight: bold;
+}
+table th,
+table td {
+padding: 6px 13px;
+border: 1px solid #ddd;
+}
+table tr {
+background-color: #fff;
+border-top: 1px solid #ccc;
+}
+table tr:nth-child(2n) {
+background-color: #f8f8f8;
+}
+img {
+max-width: 100%;
+box-sizing: content-box;
+background-color: #fff;
+}
+code {
+padding: 0;
+padding-top: 0.2em;
+padding-bottom: 0.2em;
+margin: 0;
+font-size: 85%;
+background-color: rgba(0,0,0,0.04);
+border-radius: 3px;
+}
+code:before,
+code:after {
+letter-spacing: -0.2em;
+content: "\00a0";
+}
+pre>code {
+padding: 0;
+margin: 0;
+font-size: 100%;
+word-break: normal;
+white-space: pre;
+background: transparent;
+border: 0;
+}
+.highlight {
+margin-bottom: 16px;
+}
+.highlight pre,
+pre {
+padding: 16px;
+overflow: auto;
+font-size: 85%;
+line-height: 1.45;
+background-color: #f7f7f7;
+border-radius: 3px;
+}
+.highlight pre {
+margin-bottom: 0;
+word-break: normal;
+}
+pre {
+word-wrap: normal;
+}
+pre code {
+display: inline;
+max-width: initial;
+padding: 0;
+margin: 0;
+overflow: initial;
+line-height: inherit;
+word-wrap: normal;
+background-color: transparent;
+border: 0;
+}
+pre code:before,
+pre code:after {
+content: normal;
+}
+kbd {
+display: inline-block;
+padding: 3px 5px;
+font-size: 11px;
+line-height: 10px;
+color: #555;
+vertical-align: middle;
+background-color: #fcfcfc;
+border: solid 1px #ccc;
+border-bottom-color: #bbb;
+border-radius: 3px;
+box-shadow: inset 0 -1px 0 #bbb;
+}
+.pl-c {
+color: #969896;
+}
+.pl-c1,
+.pl-s .pl-v {
+color: #0086b3;
+}
+.pl-e,
+.pl-en {
+color: #795da3;
+}
+.pl-s .pl-s1,
+.pl-smi {
+color: #333;
+}
+.pl-ent {
+color: #63a35c;
+}
+.pl-k {
+color: #a71d5d;
+}
+.pl-pds,
+.pl-s,
+.pl-s .pl-pse .pl-s1,
+.pl-sr,
+.pl-sr .pl-cce,
+.pl-sr .pl-sra,
+.pl-sr .pl-sre {
+color: #183691;
+}
+.pl-v {
+color: #ed6a43;
+}
+.pl-id {
+color: #b52a1d;
+}
+.pl-ii {
+background-color: #b52a1d;
+color: #f8f8f8;
+}
+.pl-sr .pl-cce {
+color: #63a35c;
+font-weight: bold;
+}
+.pl-ml {
+color: #693a17;
+}
+.pl-mh,
+.pl-mh .pl-en,
+.pl-ms {
+color: #1d3e81;
+font-weight: bold;
+}
+.pl-mq {
+color: #008080;
+}
+.pl-mi {
+color: #333;
+font-style: italic;
+}
+.pl-mb {
+color: #333;
+font-weight: bold;
+}
+.pl-md {
+background-color: #ffecec;
+color: #bd2c00;
+}
+.pl-mi1 {
+background-color: #eaffea;
+color: #55a532;
+}
+.pl-mdr {
+color: #795da3;
+font-weight: bold;
+}
+.pl-mo {
+color: #1d3e81;
+}
+kbd {
+display: inline-block;
+padding: 3px 5px;
+font: 11px Consolas, "Liberation Mono", Menlo, Courier, monospace;
+line-height: 10px;
+color: #555;
+vertical-align: middle;
+background-color: #fcfcfc;
+border: solid 1px #ccc;
+border-bottom-color: #bbb;
+border-radius: 3px;
+box-shadow: inset 0 -1px 0 #bbb;
+}
+.task-list-item {
+list-style-type: none;
+}
+.task-list-item+.task-list-item {
+margin-top: 3px;
+}
+.task-list-item input {
+margin: 0 0.35em 0.25em -1.6em;
+vertical-align: middle;
+}
+:checked+.radio-label {
+z-index: 1;
+position: relative;
+border-color: #4078c0;
+}
+.sourceLine {
+display: inline-block;
+}
+code .kw { color: #000000; }
+code .dt { color: #ed6a43; }
+code .dv { color: #009999; }
+code .bn { color: #009999; }
+code .fl { color: #009999; }
+code .ch { color: #009999; }
+code .st { color: #183691; }
+code .co { color: #969896; }
+code .ot { color: #0086b3; }
+code .al { color: #a61717; }
+code .fu { color: #63a35c; }
+code .er { color: #a61717; background-color: #e3d2d2; }
+code .wa { color: #000000; }
+code .cn { color: #008080; }
+code .sc { color: #008080; }
+code .vs { color: #183691; }
+code .ss { color: #183691; }
+code .im { color: #000000; }
+code .va {color: #008080; }
+code .cf { color: #000000; }
+code .op { color: #000000; }
+code .bu { color: #000000; }
+code .ex { color: #000000; }
+code .pp { color: #999999; }
+code .at { color: #008080; }
+code .do { color: #969896; }
+code .an { color: #008080; }
+code .cv { color: #008080; }
+code .in { color: #008080; }
+</style>
+<style>
+body {
+box-sizing: border-box;
+min-width: 200px;
+max-width: 980px;
+margin: 0 auto;
+padding: 45px;
+padding-top: 0px;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<h1 id="cocktailr">cocktailr</h1>
+<ul>
+<li><a href="#cocktailr">cocktailr</a>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#background">Background</a></li>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#typical-workflow">Typical workflow</a>
+<ul>
+<li><a href="#id_1-visualise-the-dendrogram">1. Visualise the
+dendrogram</a></li>
+<li><a href="#id_2-select-parent-clusters-at-a-%CF%86-cut">2. Select
+parent clusters at a φ cut</a></li>
+<li><a href="#id_3-diagnostic-species-for-parent-clusters">3. Diagnostic
+species for parent clusters</a></li>
+<li><a href="#id_4-%CF%86-based-distances-between-clusters">4. φ-based
+distances between clusters</a></li>
+<li><a href="#id_5-visualise-grouped-nodes-on-the-cocktail-dendrogram">5.
+Visualise grouped nodes on the Cocktail dendrogram</a></li>
+<li><a href="#id_6-assign-plots-relev%C3%A9s-to-groups">6. Assign plots
+(relevés) to groups</a></li>
+<li><a href="#optional-attach-assignments-to-a-header-data-frame">(Optional)
+Attach assignments to a header data frame</a></li>
+</ul></li>
+<li><a href="#reference">Reference</a></li>
+</ul></li>
+</ul>
+<h1 id="cocktailr-1">cocktailr</h1>
+<p>Fast, reproducible <em>Cocktail</em> clustering for vegetation
+tables.</p>
+<hr />
+<h2 id="overview">Overview</h2>
+<p><strong>cocktailr</strong> provides fast and reproducible
+<em>Cocktail</em> clustering of vegetation data, identifying groups of
+co-occurring species from <strong>plots × species</strong> tables. It
+uses optimized sparse-matrix calculations and φ (phi) coefficients to
+produce consistent, deterministic results, even for large vegetation
+databases.</p>
+<p>The package implements:</p>
+<ul>
+<li><strong>Hierarchical Cocktail clustering</strong> of species
+(<code>cocktail_cluster()</code>).</li>
+<li><strong>Dendrogram plotting</strong> with φ heights and optional
+cluster bands (<code>cocktail_plot()</code>).</li>
+<li>Extraction of <strong>parent clusters at a φ cut</strong>
+(<code>clusters_at_cut()</code>).</li>
+<li><strong>Diagnostic species lists</strong> for clusters or unions of
+clusters (<code>species_in_clusters()</code>).</li>
+<li><strong>φ-based distances between clusters</strong>
+(<code>cluster_phi_dist()</code>).</li>
+<li><strong>Assignment of plots (relevés) to groups</strong> using
+several strategies that combine covers, topology, and species–cluster φ
+(<code>assign_releves()</code>).</li>
+</ul>
+<hr />
+<h2 id="background">Background</h2>
+<p>The <em>Cocktail</em> method (Bruelheide 2000, 2016) identifies sets
+of species that co-occur more often than expected by chance and merges
+them hierarchically according to the <strong>phi coefficient of
+association</strong>. Each resulting cluster is characterized by its
+diagnostic species and a threshold (<em>m</em>) indicating how many
+group species a plot must contain to belong to it.</p>
+<p>For details, see the original works:</p>
+<ul>
+<li>Bruelheide, H. (2000). <em>A new measure of fidelity and its
+application to defining species groups.</em> <strong>Journal of
+Vegetation Science</strong>, 11, 167–178. <a href="https://doi.org/10.2307/3236796">https://doi.org/10.2307/3236796</a></li>
+<li>Bruelheide, H. (2016). <em>Cocktail clustering – a new hierarchical
+agglomerative algorithm for extracting species groups in vegetation
+databases.</em> <strong>Journal of Vegetation Science</strong>, 27(6),
+1297–1307. <a href="https://doi.org/10.1111/jvs.12454">https://doi.org/10.1111/jvs.12454</a></li>
+</ul>
+<hr />
+<h2 id="installation">Installation</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Install from GitHub</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(<span class="st">&quot;dvynokur/cocktailr&quot;</span>)</span></code></pre></div>
+<hr />
+<h2 id="typical-workflow">Typical workflow</h2>
+<p>A small end-to-end example on a toy <strong>plots × species</strong>
+matrix, showing:</p>
+<ol style="list-style-type: decimal">
+<li>Cocktail clustering with optional species–cluster φ.</li>
+<li>Dendrogram plotting.</li>
+<li>Selecting clusters at a φ cut.</li>
+<li>Diagnostic species lists.</li>
+<li>φ-based distances between clusters and grouping.</li>
+<li>Plot assignment using φ and cover, optionally with grouped
+nodes.</li>
+</ol>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">library</span>(cocktailr)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co"># Toy plots × species matrix with percentage cover</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>vm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="fu">c</span>(</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>    <span class="dv">60</span>,<span class="dv">50</span>,<span class="dv">40</span>,<span class="dv">30</span>,  <span class="dv">5</span>, <span class="dv">0</span>,<span class="dv">10</span>, <span class="dv">0</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>    <span class="dv">55</span>,<span class="dv">45</span>,<span class="dv">35</span>,<span class="dv">25</span>, <span class="dv">10</span>, <span class="dv">5</span>, <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>    <span class="dv">50</span>,<span class="dv">40</span>,<span class="dv">30</span>,<span class="dv">20</span>,  <span class="dv">5</span>,<span class="dv">10</span>, <span class="dv">0</span>, <span class="dv">5</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>    <span class="dv">45</span>,<span class="dv">35</span>,<span class="dv">25</span>,<span class="dv">15</span>,  <span class="dv">0</span>, <span class="dv">5</span>, <span class="dv">5</span>, <span class="dv">0</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>    <span class="dv">10</span>, <span class="dv">5</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">60</span>,<span class="dv">50</span>,<span class="dv">40</span>,<span class="dv">30</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>     <span class="dv">5</span>,<span class="dv">10</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">55</span>,<span class="dv">45</span>,<span class="dv">35</span>,<span class="dv">25</span>,</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>     <span class="dv">0</span>, <span class="dv">5</span>,<span class="dv">10</span>, <span class="dv">0</span>, <span class="dv">50</span>,<span class="dv">40</span>,<span class="dv">30</span>,<span class="dv">20</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>     <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">5</span>,<span class="dv">10</span>, <span class="dv">45</span>,<span class="dv">35</span>,<span class="dv">25</span>,<span class="dv">15</span></span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>  ),</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a>  <span class="at">nrow =</span> <span class="dv">8</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a>  <span class="at">dimnames =</span> <span class="fu">list</span>(</span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">&quot;plot&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>),</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">&quot;sp&quot;</span>,   <span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>  )</span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>)</span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a><span class="co"># 1) Cocktail clustering, keeping relative cover and species–cluster phi</span></span>
+<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a>res <span class="ot">&lt;-</span> <span class="fu">cocktail_cluster</span>(</span>
+<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a>  <span class="at">vegmatrix           =</span> vm,</span>
+<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a>  <span class="at">progress            =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a>  <span class="at">plot_values         =</span> <span class="st">&quot;rel_cover&quot;</span>,   <span class="co"># keeps cover-based Plot.cluster</span></span>
+<span id="cb2-27"><a href="#cb2-27" tabindex="-1"></a>  <span class="at">species_cluster_phi =</span> <span class="cn">TRUE</span>           <span class="co"># computes Species.cluster.phi</span></span>
+<span id="cb2-28"><a href="#cb2-28" tabindex="-1"></a>)</span>
+<span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" tabindex="-1"></a><span class="fu">names</span>(res)</span>
+<span id="cb2-31"><a href="#cb2-31" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Cluster.species&quot;     &quot;Cluster.info&quot;        &quot;Plot.cluster&quot;        &quot;Cluster.merged&quot;      &quot;Cluster.height&quot;     </span></span>
+<span id="cb2-32"><a href="#cb2-32" tabindex="-1"></a><span class="co">#&gt; [6] &quot;Species.cluster.phi&quot; &quot;species&quot;             &quot;plots&quot;</span></span></code></pre></div>
+<h3 id="id_1-visualise-the-dendrogram">1. Visualise the dendrogram</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Plot to the current device with a phi cut and labels at that cut</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">cocktail_plot</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="at">x              =</span> res,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">file           =</span> <span class="cn">NULL</span>,       <span class="co"># RStudio Plots pane / current device</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">phi_cut        =</span> <span class="fl">0.25</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">label_clusters =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">cex_species    =</span> <span class="fl">0.9</span></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>)</span></code></pre></div>
+<img role="img" src="data:image/png;base64,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gIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABD8P+t2G7boHpuHAAAAAElFTkSuQmCC" width="100%" />
+
+<h3 id="id_2-select-parent-clusters-at-a-φ-cut">2. Select parent
+clusters at a φ cut</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>phi_cut <span class="ot">&lt;-</span> <span class="fl">0.25</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>parent_labels <span class="ot">&lt;-</span> <span class="fu">clusters_at_cut</span>(</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">x         =</span> res,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">phi       =</span> phi_cut,</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">as_labels =</span> <span class="cn">TRUE</span></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>)</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>parent_labels</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_1&quot; &quot;c_2&quot; &quot;c_4&quot;</span></span></code></pre></div>
+<h3 id="id_3-diagnostic-species-for-parent-clusters">3. Diagnostic
+species for parent clusters</h3>
+<p>Topological species per parent cluster:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>diag_sp_topo <span class="ot">&lt;-</span> <span class="fu">species_in_clusters</span>(</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="at">x      =</span> res,</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="at">labels =</span> parent_labels</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>)</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>diag_sp_topo</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co">#&gt; $c_1</span></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="co">#&gt; [1] &quot;sp3&quot; &quot;sp4&quot;</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co">#&gt; $c_2</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#&gt; [1] &quot;sp1&quot; &quot;sp2&quot;</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#&gt; $c_4</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="co">#&gt; [1] &quot;sp5&quot; &quot;sp6&quot; &quot;sp8&quot;</span></span></code></pre></div>
+<p>With φ-based filtering and ranking (uses
+<code>Species.cluster.phi</code>):</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>diag_sp_phi <span class="ot">&lt;-</span> <span class="fu">species_in_clusters</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="at">x                   =</span> res,</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="at">labels              =</span> parent_labels,</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="at">species_cluster_phi =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>  <span class="at">min_phi             =</span> <span class="fl">0.20</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>)</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>diag_sp_phi</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a><span class="co">#&gt; $c_1</span></span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a><span class="co">#&gt;   species      phi</span></span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a><span class="co">#&gt; 1     sp4 1.000000</span></span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a><span class="co">#&gt; 2     sp3 0.745356</span></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a><span class="co">#&gt; $c_2</span></span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a><span class="co">#&gt;   species       phi</span></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="co">#&gt; 1     sp1 1.0000000</span></span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a><span class="co">#&gt; 2     sp2 0.6546537</span></span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a><span class="co">#&gt; $c_4</span></span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a><span class="co">#&gt;   species     phi</span></span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a><span class="co">#&gt; 1     sp8 1.00000</span></span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a><span class="co">#&gt; 2     sp5 0.48795</span></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a><span class="co">#&gt; 3     sp6 0.48795</span></span></code></pre></div>
+<h3 id="id_4-φ-based-distances-between-clusters">4. φ-based distances
+between clusters</h3>
+<p>Compute a distance matrix between clusters based on species fidelity
+profiles.<br />
+Here we include all nodes with <code>Cluster.height &gt;= 0.1</code> to
+get a richer hierarchy for <em>hclust</em>:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>D <span class="ot">&lt;-</span> <span class="fu">cluster_phi_dist</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="at">x       =</span> res,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">min_phi =</span> <span class="fl">0.1</span>          <span class="co"># keep nodes with merge phi &gt;= 0.1</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>)</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>D</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co">#&gt;           c_1       c_2       c_3       c_4       c_5</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="co">#&gt; c_2 0.9939541                                        </span></span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#&gt; c_3 1.1091837 1.0559572                              </span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="co">#&gt; c_4 1.1091837 1.0559572 0.8336476                    </span></span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a><span class="co">#&gt; c_5 1.1359380 1.0676871 0.8703734 0.8703734          </span></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a><span class="co">#&gt; c_6 0.8640620 0.9323129 1.1296266 1.1296266 1.1393197</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a><span class="co"># Hierarchical clustering of clusters</span></span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>hc_nodes <span class="ot">&lt;-</span> <span class="fu">hclust</span>(D, <span class="at">method =</span> <span class="st">&quot;average&quot;</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a><span class="fu">plot</span>(hc_nodes, <span class="at">main =</span> <span class="st">&quot;Cluster dendrogram (phi-based distance)&quot;</span>, <span class="at">cex =</span> <span class="fl">0.7</span>)</span></code></pre></div>
+<img role="img" src="data:image/png;base64,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" width="100%" />
+
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>grp_nodes <span class="ot">&lt;-</span> <span class="fu">cutree</span>(hc_nodes, <span class="at">k =</span> <span class="dv">2</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>grp_nodes</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co">#&gt; c_1 c_2 c_3 c_4 c_5 c_6 </span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="co">#&gt;   1   1   2   2   2   1</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="fu">table</span>(grp_nodes)</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co">#&gt; grp_nodes</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt; 1 2 </span></span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a><span class="co">#&gt; 3 3</span></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a><span class="co"># Build node groups as character labels (&quot;c_1&quot;, &quot;c_2&quot;, …) per group</span></span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>node_groups <span class="ot">&lt;-</span> <span class="fu">split</span>(<span class="fu">names</span>(grp_nodes), grp_nodes)</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>node_groups</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a><span class="co">#&gt; $`1`</span></span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_1&quot; &quot;c_2&quot; &quot;c_6&quot;</span></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a><span class="co">#&gt; $`2`</span></span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_3&quot; &quot;c_4&quot; &quot;c_5&quot;</span></span></code></pre></div>
+<h3 id="id_5-visualise-grouped-nodes-on-the-cocktail-dendrogram">5.
+Visualise grouped nodes on the Cocktail dendrogram</h3>
+<p>We can use <code>clusters = node_groups</code> to show union groups
+as coloured bands and label cluster IDs. Within each group, if both an
+ancestor and a descendant node are present, only the
+<strong>topmost</strong> (ancestor) is used for labelling and band
+placement.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">cocktail_plot</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">x              =</span> res,</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">clusters       =</span> node_groups,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">label_clusters =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="at">cex_species    =</span> <span class="fl">0.9</span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>)</span></code></pre></div>
+<img role="img" src="data:image/png;base64,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IA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12s0hDpI26I9IQIA12szJJw6Q43OKjSIPZLNLgblYeaZgOSUPas0iDu1lZpKEsA2lIexZpcDcrgzTM3pVlIA1pzyIN7mb5T8N0ryi+PCINac8iDe5m+U/DpNh9PyMNic8iDe5m+U/DxfflYwrSkPgs0uBulv80VEhD6rNIg7tZeaehCP37/3VRdPpXHfU5zMHC/umfOym6/bP0hzlYmJM0bEj0JE0gHy13MtIA3E2kAYCANAAQkAYAAtIAQEAaAAicpgFAZC33QZU7/Pa2TEM3vS6mz2HZLizfYf4XltWeu/+bI4FZDHM3izS08n9zJDCLYe5mkYZW/m+OBGYxzN0s0tDK/82RwCyGuZtFGlr5vzkSmMUwd7NIQyv/N0cCsxjmbhZpaOX/5khgFsPczSINrfzfHAnMYpi7WaShlf+bI4FZDHM3izS08n9zJDCLYe5mkYZW/m+OBGYxzN0s0tDK/82RwCyGuZtFGlr5vzkSmMUwd7NIQyv/N0cCsxjmbhZpANAb0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYAgszRcvHr46Pl5X9Munz360Nesfsz+fLZ889U3Eb+R5bfufbzPft3su2oxs3fPHv70dT8DT796+OgXva1xdvr118obfiZpmJ08fFhua5NhURq86Wnq5f5OVmm4OKi+fU+aLSzu4i73i8GLeJ9+08mwWkyzeRS7MbeP+Y+LaTOqeBz559TsZXWLXV3WtyaT2NIAAAcQSURBVNzgUPNT55GG2VH9nfndfvH4+I8HRdQ77OWzhwt7RXGvTFIueSjvrsW9vUVao6ehvN/09UN1UhT3z6u76+5vq+0j5s+O5ttWjrr3/Pj45bCaG1H9bSyKL0flyrQXlkcaxsXg9dlJGerqB9FsVDyIOGt+a6xEvAfNXn0dirmPf1VuX+V9dfa22cJip2Hnvw56i8OoeFr/t94uyp8jEbeP5ts2mieh3Fiexps1v8kuyh+MD5r/01xYFmkob+xqV2o8vz2mw6ipnpZ1Ln8ilP44HPz2+Pi7eMP6zFD5XZz/0Dkpdt73kIYPZYSK4tH38YashlUra/57FXn7qL9ty1GRt8X5TTYdNuN0h2WRhvlWfLm/SHXcQwDVz9Vf9jGojt7gpz3tNaxWc1LUm3fsNFxdXbysH4+/jvyAvBm2XFDUlc3TsJjQx3dxOUR3WFZpePbFfK8h9j32dFjve/dwGDLu3m9gbTXV/lcvG/XV7F1zvO7hF9H3h5Z7RVG3j3phy1HR07Cx10AaNswfUCyM49+bZi+rHYc+nqEoH1OoHne+2fp3sXzU2k8aSp/ePYv8UGn+0H88f9wf9VhUeW99/N35ZDEi8rZYLuW8OrjWrEx3WBZpuJqUj/4XO6XVTmoPd6aTYXH/v/t48nIS+SD3+qTl84llJu5F3ffaCM/sY8QjNnVfd19Xd6Qvz6vtI+4zFMXqactPbyNvi9NhMXg4LP7moPjy7OwPusPySEPZy9WDuyLuQeGF6rhw3J91jdm7b/p6jm+0WlD1dHCPaYhtWj3vXz0xq//0/6bZx2+/2ms2jR62xfr8ifvn8zM2VIdlkoari18v0vCz3p4t/9OwjzT06WRvtaA/xd1r6PlE0tnJ3uJZnl62j7M//vq8n23x43E146J8UPZI9zzPXNJg4iLqucTmzjJb3KezP3+X25oiIg0ABDmlYXZancP8uK+Xz/Q3LNuF5Tssg4VllIb5oZjIL58xGJbtwvIdlsPC8klD/eKZs7Ozd3s9HBzsc1i2C8t3WBYLyycN9dkflcgvr+p9WLYLy3dYFgvLJg2rV7T0cKJ0n8OyXVi+w/JYWEZpWH5b4p9O0+ewbBeW77A8FpZNGsr9qsVJbpFflN33sGwXlu+wLBaWTxouFjtWFwfxrwDX57BsF5bvsCwWlk0aZq++KopHz4+/Lf/YjX1tgz6HZbuwfIflsbBs0nDtgkgxnzbqc1i2C8t3WB4LyyYN1y6jGLfU/Q3LdmH5DstjYdmkAYAm0gBAkF0aPh0f/5DlsGwXlu8w3wvLKA2nP/9Q/zKSXq7y1OewbBeW77AcFpZPGibzS27tfjWMf23IPodlu7B8h2WxsHzSUP+Gokl1SdAeLrTa57BsF5bvsCwWlk0amkv/11cV7+M3x/Q3LNuF5Tssj4Vlk4b5bw2qCtrTS1p6GpbtwvIdlsfC8kpDvVvVw0ta+hyW7cLyHZbHwrJJQ/WQa1bvVvVz+Yz+hmW7sHyHZbGwfNJQP3tT7laV+1bxX+3W57BsF5bvsCwWlk8aql81V/0C68v9Pi7V2eewbBeW77AcFpZRGgDoIQ0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBAQBoACEgDAAFpACAgDQAEpAGAgDQAEJAGAALSAEBAGgAISAMAAWkAICANAASkAYCANAAQkAYAAtIAQEAaAAhIAwABaQAgIA0ABKQBgIA0ABCQBgAC0gBA8P8oL82nht8KpAAAAABJRU5ErkJggg==" width="100%" />
+
+<h3 id="id_6-assign-plots-relevés-to-groups">6. Assign plots (relevés)
+to groups</h3>
+<p>Use <code>assign_releves()</code> with one of the strategies:</p>
+<ul>
+<li><code>&quot;count&quot;</code> – number of diagnostic species present.</li>
+<li><code>&quot;cover&quot;</code> – summed relative cover of diagnostic
+species.</li>
+<li><code>&quot;phi_topo&quot;</code> – sum of phi over topological species
+present.</li>
+<li><code>&quot;phi_cover_topo&quot;</code> – sum of relative cover × phi over
+topological species.</li>
+<li><code>&quot;phi_cover&quot;</code> – sum of relative cover × phi for species
+with phi ≥ <code>min_phi</code>.</li>
+<li><code>&quot;phi&quot;</code> – sum of phi for species with phi ≥
+<code>min_phi</code>.</li>
+</ul>
+<p>Here we use <code>&quot;phi_cover&quot;</code> with the parent clusters at
+<code>phi_cut</code>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>assign_phi <span class="ot">&lt;-</span> <span class="fu">assign_releves</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="at">x              =</span> res,</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="at">vegmatrix      =</span> vm,</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="at">strategy       =</span> <span class="st">&quot;phi_cover&quot;</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="at">phi_cut        =</span> phi_cut,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="at">min_phi        =</span> <span class="fl">0.20</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>  <span class="at">min_group_size =</span> <span class="dv">1</span><span class="dt">L</span></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>)</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>assign_phi</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a><span class="co">#&gt; plot1 plot2 plot3 plot4 plot5 plot6 plot7 plot8 </span></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a><span class="co">#&gt; &quot;g_2&quot; &quot;g_2&quot; &quot;g_2&quot; &quot;g_2&quot; &quot;g_4&quot; &quot;g_4&quot; &quot;g_4&quot; &quot;g_4&quot; </span></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)</span></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$strategy</span></span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a><span class="co">#&gt; [1] &quot;phi_cover&quot;</span></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$phi_cut</span></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a><span class="co">#&gt; [1] 0.25</span></span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$clusters</span></span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a><span class="co">#&gt; NULL</span></span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$groups_used</span></span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a><span class="co">#&gt; [1] &quot;g_1&quot; &quot;g_2&quot; &quot;g_4&quot;</span></span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$min_phi</span></span>
+<span id="cb10-27"><a href="#cb10-27" tabindex="-1"></a><span class="co">#&gt; [1] 0.2</span></span>
+<span id="cb10-28"><a href="#cb10-28" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-29"><a href="#cb10-29" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$min_group_size</span></span>
+<span id="cb10-30"><a href="#cb10-30" tabindex="-1"></a><span class="co">#&gt; [1] 1</span></span>
+<span id="cb10-31"><a href="#cb10-31" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-32"><a href="#cb10-32" tabindex="-1"></a><span class="co">#&gt; attr(,&quot;details&quot;)$collapsed_groups</span></span>
+<span id="cb10-33"><a href="#cb10-33" tabindex="-1"></a><span class="co">#&gt; character(0)</span></span>
+<span id="cb10-34"><a href="#cb10-34" tabindex="-1"></a><span class="fu">table</span>(assign_phi)</span>
+<span id="cb10-35"><a href="#cb10-35" tabindex="-1"></a><span class="co">#&gt; assign_phi</span></span>
+<span id="cb10-36"><a href="#cb10-36" tabindex="-1"></a><span class="co">#&gt; g_2 g_4 </span></span>
+<span id="cb10-37"><a href="#cb10-37" tabindex="-1"></a><span class="co">#&gt;   4   4</span></span></code></pre></div>
+<p>The returned object is a named character vector (names = plot IDs).
+Each value is:</p>
+<ul>
+<li>a group label such as <code>&quot;g_5&quot;</code> for groups defined by a
+single node, or <code>&quot;g_5_12&quot;</code> for union groups of multiple
+non-nested nodes;</li>
+<li><code>&quot;+&quot;</code> when there is an unresolved tie between
+groups;</li>
+<li><code>&quot;-&quot;</code> for groups that were collapsed because they contain
+fewer plots than <code>min_group_size</code>;</li>
+<li><code>NA</code> when no group wins for that plot.</li>
+</ul>
+<p>For union groups that include both ancestors and descendants, only
+the <strong>topmost</strong> ancestor is kept within that group. In
+those cases, the label is just the ancestor ID
+(e.g. <code>&quot;g_5&quot;</code>), not a combined ID.</p>
+<p>You can then attach these assignments to your plot header / metadata
+table.</p>
+<hr />
+<h3 id="optional-attach-assignments-to-a-header-data-frame">(Optional)
+Attach assignments to a header data frame</h3>
+<p>If you have a header table <code>hea</code> with a column
+<code>releve_number</code>, you can add multiple assignment strategies
+as new columns:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co"># Example strategies you want as separate columns</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>strategies <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;count&quot;</span>, <span class="st">&quot;cover&quot;</span>, <span class="st">&quot;phi_topo&quot;</span>, <span class="st">&quot;phi_cover_topo&quot;</span>, <span class="st">&quot;phi_cover&quot;</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>hea2 <span class="ot">&lt;-</span> hea</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="cf">for</span> (s <span class="cf">in</span> strategies) {</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>  rel_assigned <span class="ot">&lt;-</span> <span class="fu">assign_releves</span>(</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>    <span class="at">x              =</span> res,</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>    <span class="at">vegmatrix      =</span> vm,</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a>    <span class="at">strategy       =</span> s,</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a>    <span class="at">phi_cut        =</span> <span class="fl">0.25</span>,</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>    <span class="at">min_phi        =</span> <span class="fl">0.20</span>,</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>    <span class="at">min_group_size =</span> <span class="dv">2</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>  )</span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a>  <span class="co"># Align by releve_number using the names of rel_assigned</span></span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>  idx <span class="ot">&lt;-</span> <span class="fu">match</span>(hea2<span class="sc">$</span>releve_number, <span class="fu">as.integer</span>(<span class="fu">names</span>(rel_assigned)))</span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a>  colname <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;grp_&quot;</span>, s)  <span class="co"># e.g. &quot;grp_count&quot;, &quot;grp_cover&quot;, ...</span></span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a></span>
+<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a>  hea2[[colname]] <span class="ot">&lt;-</span> rel_assigned[idx]</span>
+<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a></span>
+<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a>  <span class="co"># Optional: turn &quot;-&quot; into NA instead of a literal dash</span></span>
+<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a>  <span class="co"># hea2[[colname]][hea2[[colname]] == &quot;-&quot;] &lt;- NA_character_</span></span>
+<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a>}</span>
+<span id="cb11-28"><a href="#cb11-28" tabindex="-1"></a></span>
+<span id="cb11-29"><a href="#cb11-29" tabindex="-1"></a>dplyr<span class="sc">::</span><span class="fu">glimpse</span>(hea2)</span></code></pre></div>
+<hr />
+<h2 id="reference">Reference</h2>
+<p>See function help for details:</p>
+<ul>
+<li><code>?cocktail_cluster</code> – build the Cocktail tree, optionally
+with species–cluster phi</li>
+<li><code>?cocktail_plot</code> – draw dendrograms (PDF/PNG or current
+device)</li>
+<li><code>?clusters_at_cut</code> – parent clusters at a phi cut</li>
+<li><code>?species_in_clusters</code> – diagnostic species per node or
+node union</li>
+<li><code>?cluster_phi_dist</code> – phi-based distances between
+clusters</li>
+<li><code>?assign_releves</code> – assign plots to groups using covers
+and phi</li>
+</ul>
+<hr />
+<p>© 2025 Denys Vynokurov &amp; Helge Bruelheide. Licensed under
+MIT.</p>
+
+</body>
+</html>

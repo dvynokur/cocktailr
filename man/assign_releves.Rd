@@ -7,7 +7,7 @@
 assign_releves(
   x,
   vegmatrix,
-  strategy = c("count", "cover", "phi_topo", "phi_cover_topo", "phi_cover", "phi"),
+  strategy = c("count", "cover", "phi_node", "phi_cover_node", "phi_cover", "phi"),
   phi_cut = 0.3,
   clusters = NULL,
   min_phi = 0.2,
@@ -18,7 +18,7 @@ assign_releves(
 \item{x}{A Cocktail object (list) with components
 \code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height},
 and \code{Plot.cluster} (e.g. from \code{\link{cocktail_cluster}()}).
-For strategies \code{"phi_topo"}, \code{"phi_cover_topo"},
+For strategies \code{"phi_node"}, \code{"phi_cover_node"},
 \code{"phi_cover"}, and \code{"phi"}, \code{x$Species.cluster.phi}
 should be present; otherwise a fallback is used.}
 
@@ -27,7 +27,7 @@ Row names must include the plots in \code{x}; column names must include
 the species used in \code{x}. Missing values are treated as 0.}
 
 \item{strategy}{One of
-\code{c("count","cover","phi_topo","phi_cover_topo","phi_cover","phi")}.}
+\code{c("count","cover","phi_node","phi_cover_node","phi_cover","phi")}.}
 
 \item{phi_cut}{Numeric in (0,1). Height cut used to choose parent clusters
 (topmost nodes with height >= \code{phi_cut}) when \code{clusters} is not given.}
@@ -56,7 +56,7 @@ diagnostics (groups used, strategy, counts, etc.).
 Assign plots to groups derived from a Cocktail tree using:
 \itemize{
 \item \code{x$Plot.cluster} - cluster membership per plot (non-zero = member);
-\item \code{x$Cluster.species} - topological species per node;
+\item \code{x$Cluster.species} - node-constituent species per node;
 \item \code{vegmatrix} - per-plot species covers (plots x species);
 \item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}.
 }
@@ -66,14 +66,14 @@ Strategies (per plot, per group):
 \describe{
 
 \item{\code{"count"}}{
-For each cluster, count how many of its topological species are present
+For each cluster, count how many of its node-constituent species are present
 in the releve. The winner is the cluster with the largest count.
 If several clusters share the same maximum, the plot is labeled \code{"+"}.
 If no cluster has any species present, the plot gets \code{NA}.
 }
 
 \item{\code{"cover"}}{
-For each cluster, sum the covers of its topological species that are
+For each cluster, sum the covers of its node-constituent species that are
 present in the releve. The winner is the cluster with the highest sum.
 If there is a tie, use the number of species (as in \code{"count"})
 as a tie-breaker; if still tied, label \code{"+"}. Plots with zero
@@ -83,20 +83,20 @@ If \code{x$Plot.cluster} appears to be strictly binary (0/1), the function
 issues a warning and automatically falls back to \code{strategy = "count"}.
 }
 
-\item{\code{"phi_topo"}}{
+\item{\code{"phi_node"}}{
 Requires \code{x$Species.cluster.phi}. For each cluster and species,
 define \eqn{\phi(s,g)} as the maximum of \eqn{\phi} across that group's
 nodes (negatives set to 0). For a given plot, restrict to the cluster's
-topological species that are present in the releve and sum their
+node-constituent species that are present in the releve and sum their
 \eqn{\phi} values. The winner has the largest such sum. Ties are broken
 first by total cover of these species, then by their species count;
 if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
 }
 
-\item{\code{"phi_cover_topo"}}{
-Requires \code{x$Species.cluster.phi}. As in \code{"phi_topo"}, use
-the cluster's topological species only, but score each cluster in a plot
-by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its topological
+\item{\code{"phi_cover_node"}}{
+Requires \code{x$Species.cluster.phi}. As in \code{"phi_node"}, use
+the cluster's node-constituent species only, but score each cluster in a plot
+by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its node-constituent
 species present in the releve. The winner has the largest score.
 If there is a tie, use the number of these species as a tie-breaker;
 if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
