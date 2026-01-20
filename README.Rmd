@@ -41,9 +41,12 @@ The package implements:
 - **Hierarchical Cocktail clustering** of species (`cocktail_cluster()`).
 - **Dendrogram plotting** with φ heights and optional cluster bands (`cocktail_plot()`).
 - Extraction of **parent clusters at a φ cut** (`clusters_at_cut()`).
+- **Selection of strong clusters** by a combined score (`select_clusters()`).
 - **Diagnostic species lists** for clusters or unions of clusters (`species_in_clusters()`).
-- **φ-based distances between clusters** (`cluster_phi_dist()`).
-- **Assignment of plots (relevés) to groups** using several strategies that combine covers, topology, and species–cluster φ (`assign_releves()`).
+- Listing **plots (relevés) belonging to clusters or cluster unions** (`releves_in_clusters()`).
+- Finding **clusters that contain a given species (or set of species)** (`clusters_with_species()`).
+- **Distances between clusters** based on direct plot co-membership φ (`cluster_phi_dist()`).
+- **Assignment of plots (relevés) to groups** using cover- and φ-based strategies (`assign_releves()`).
 
 ---
 
@@ -71,12 +74,13 @@ remotes::install_github("dvynokur/cocktailr")
 
 A small end-to-end example on a toy **plots × species** matrix, showing:
 
-1. Cocktail clustering with optional species–cluster φ.
-2. Dendrogram plotting.
-3. Selecting clusters at a φ cut.
-4. Diagnostic species lists.
-5. φ-based distances between clusters and grouping.
-6. Plot assignment using φ and cover, optionally with grouped nodes.
+1. Cocktail clustering  
+2. Dendrogram plotting  
+3. Select clusters at a φ cut **or** select strongest clusters by score  
+4. Cluster diagnostics (new helper functions)  
+5. Species lists  
+6. Distances between clusters  
+7. Plot assignment  
 
 ```{r typical-workflow}
 library(cocktailr)
@@ -104,54 +108,141 @@ vm <- matrix(
 res <- cocktail_cluster(
   vegmatrix           = vm,
   progress            = FALSE,
-  plot_values         = "rel_cover",   # keeps cover-based Plot.cluster
-  species_cluster_phi = TRUE           # computes Species.cluster.phi
+  plot_values         = "rel_cover",
+  species_cluster_phi = TRUE
 )
 
 names(res)
 ```
 
-### 1. Visualise the dendrogram
+---
+
+### 1) Visualise the dendrogram
 
 ```{r typical-plot}
-# Plot to the current device with a phi cut and labels at that cut
 cocktail_plot(
   x              = res,
-  file           = NULL,       # RStudio Plots pane / current device
+  file           = NULL,       # plot to device
   phi_cut        = 0.25,
   label_clusters = TRUE,
   cex_species    = 0.9
 )
 ```
 
-### 2. Select parent clusters at a φ cut
+---
+
+### 2) Select clusters at a φ cut **or** select strongest clusters by score
+
+#### Option A: Parent clusters at a φ cut
 
 ```{r typical-clusters-at-cut}
 phi_cut <- 0.25
 
 parent_labels <- clusters_at_cut(
   x         = res,
-  phi       = phi_cut,
+  phi_cut   = phi_cut,
   as_labels = TRUE
 )
 
 parent_labels
 ```
 
-### 3. Diagnostic species for parent clusters
+#### Option B: Strong clusters by score (merge φ × log(k) × log(m))
 
-Topological species per parent cluster:
+```{r typical-select-clusters}
+strong_labels <- select_clusters(
+  x         = res,
+  min_phi   = 0.20,
+  min_k     = 1,
+  min_score = 0.3,
+  mode      = "strict",
+  return    = "labels"
+)
 
-```{r typical-species-topo}
-diag_sp_topo <- species_in_clusters(
+strong_labels
+```
+
+(If you want the full score table:)
+
+```{r typical-select-clusters-table}
+strong_table <- select_clusters(
+  x         = res,
+  min_phi   = 0.20,
+  min_k     = 1,
+  min_score = 0.3,
+  mode      = "strict",
+  return    = "table"
+)
+
+strong_table
+```
+
+---
+
+### 3) Cluster diagnostics (helper functions)
+
+These two helpers allow quick inspection of clusters and cluster unions.
+
+#### (a) List plots belonging to clusters or cluster unions
+
+```{r typical-releves-in-clusters}
+# example: plots belonging to the first two parent clusters
+releves_A <- releves_in_clusters(res, clusters = parent_labels[1])
+releves_B <- releves_in_clusters(res, clusters = parent_labels[3])
+
+releves_A
+releves_B
+```
+
+Union groups (list input): plots belonging to *any node in the union*:
+
+```{r typical-releves-in-clusters-union}
+union_example <- list(
+  group1 = parent_labels[1:2]
+)
+
+releves_union <- releves_in_clusters(res, clusters = union_example)
+releves_union
+```
+
+#### (b) Find clusters that contain a given species (or set of species)
+
+```{r typical-clusters-with-species}
+# clusters that contain sp1
+clusters_with_species(res, species = "sp1")
+
+# clusters that contain BOTH sp1 and sp2
+cl <- clusters_with_species(res, 
+                      species = c("sp1", "sp2"),
+                      min_phi = 0.2,
+                      match = "all")
+cl
+# highlight clusters that contain both sp1 and sp2
+cocktail_plot(
+  x              = res,
+  file           = NULL,
+  clusters       = cl,
+  label_clusters = TRUE,
+  cex_species    = 0.9
+)
+```
+
+---
+
+### 4) Diagnostic species for selected clusters
+
+Membership species per cluster (node-constituting species):
+
+```{r typical-species-member}
+diag_sp_member <- species_in_clusters(
   x      = res,
   labels = parent_labels
 )
 
-diag_sp_topo
+diag_sp_member
 ```
 
-With φ-based filtering and ranking (uses `Species.cluster.phi`):
+With φ-based filtering/ranking (uses Species.cluster.phi):
 
 ```{r typical-species-phi}
 diag_sp_phi <- species_in_clusters(
@@ -164,37 +255,53 @@ diag_sp_phi <- species_in_clusters(
 diag_sp_phi
 ```
 
-### 4. φ-based distances between clusters
+---
 
-Compute a distance matrix between clusters based on species fidelity profiles.  
-Here we include all nodes with `Cluster.height >= 0.1` to get a richer hierarchy for *hclust*:
+### 5) Distances between clusters (direct plot co-membership φ)
+
+`cluster_phi_dist()` computes distances between clusters using the φ coefficient
+between their **binary plot-membership vectors** (membership = `Plot.cluster > 0`).
+Distance is always: `d(A,B) = 1 - phi(A,B)`.
+
+We must provide which nodes to compare (e.g. strong clusters):
 
 ```{r typical-phi-dist}
+nodes_for_dist <- select_clusters(
+  x         = res,
+  min_score = 0,
+  mode      = "strict",
+  return    = "labels"
+)
+
+
 D <- cluster_phi_dist(
-  x       = res,
-  min_phi = 0.1          # keep nodes with merge phi >= 0.1
+  x        = res,
+  clusters = nodes_for_dist
 )
 
 D
+```
 
-# Hierarchical clustering of clusters
+Hierarchical clustering of clusters:
+
+```{r typical-phi-dist-hclust}
 hc_nodes <- hclust(D, method = "average")
 
-plot(hc_nodes, main = "Cluster dendrogram (phi-based distance)", cex = 0.7)
+plot(hc_nodes, main = "Cluster dendrogram (co-membership phi distance)", cex = 0.7)
 
 grp_nodes <- cutree(hc_nodes, k = 2)
-grp_nodes
 table(grp_nodes)
 
-# Build node groups as character labels ("c_1", "c_2", …) per group
+# Node unions: group -> vector of node labels ("c_12", ...)
 node_groups <- split(names(grp_nodes), grp_nodes)
 node_groups
 ```
 
-### 5. Visualise grouped nodes on the Cocktail dendrogram
+---
 
-We can use `clusters = node_groups` to show union groups as coloured bands and label cluster IDs.
-Within each group, if both an ancestor and a descendant node are present, only the **topmost** (ancestor) is used for labelling and band placement.
+### 6) Visualise grouped nodes on the Cocktail dendrogram
+
+You can pass union groups (`node_groups`) to `cocktail_plot()`:
 
 ```{r typical-cocktail-groups}
 cocktail_plot(
@@ -205,43 +312,72 @@ cocktail_plot(
 )
 ```
 
-### 6. Assign plots (relevés) to groups
+---
 
-Use `assign_releves()` with one of the strategies:
+### 7) Assign plots (relevés) to groups
 
-- `"count"` – number of diagnostic species present.
-- `"cover"` – summed relative cover of diagnostic species.
-- `"phi_topo"` – sum of phi over topological species present.
-- `"phi_cover_topo"` – sum of relative cover × phi over topological species.
-- `"phi_cover"` – sum of relative cover × phi for species with phi ≥ `min_phi`.
-- `"phi"` – sum of phi for species with phi ≥ `min_phi`.
+`assign_releves()` assigns each plot to one of the provided cluster groups.
 
-Here we use `"phi_cover"` with the parent clusters at `phi_cut`:
+Strategies:
+
+- `"count"`     – number of candidate species present
+- `"cover"`     – summed cover of candidate species
+- `"phi"`       – sum of φ weights over candidate species
+- `"phi_cover"` – sum of cover × φ over candidate species
+
+Candidate species logic:
+
+- Candidate species are the cluster membership species (node-constituting species 
+  from `Cluster.species`).
+- For `"phi"` and `"phi_cover"`:
+  - `min_phi = NULL` (default): candidate species are node-constituting species.
+  - `min_phi = 0.2` (example): candidate species are taken from **full fidelity profiles**
+    (`Species.cluster.phi`), using those with φ ≥ min_phi.
+
+Membership restriction:
+
+- `plot_membership = TRUE` (default): only groups where the plot is a Cocktail member compete.
+- `plot_membership = FALSE`: all groups compete for all plots.
+
+Example: assign to the parent clusters at `phi_cut = 0.25`. 
+The assignment `"+"` appears when a plot has an unresolved tie (two or more groups
+share the same best score):
 
 ```{r typical-assign}
 assign_phi <- assign_releves(
-  x              = res,
-  vegmatrix      = vm,
-  strategy       = "phi_cover",
-  phi_cut        = phi_cut,
-  min_phi        = 0.20,
-  min_group_size = 1L
+  x               = res,
+  vegmatrix       = vm,
+  strategy        = "count",
+  clusters        = parent_labels,
+  plot_membership = TRUE,
+  min_group_size  = 1L
 )
 
-assign_phi
 table(assign_phi)
+```
+
+Example: assign to union groups defined by cluster-distance grouping:
+
+```{r typical-assign-unions}
+assign_unions <- assign_releves(
+  x               = res,
+  vegmatrix       = vm,
+  strategy        = "phi_cover",
+  clusters        = node_groups,
+  plot_membership = TRUE,
+  min_phi         = 0.20,
+  min_group_size  = 1L
+)
+
+table(assign_unions)
 ```
 
 The returned object is a named character vector (names = plot IDs). Each value is:
 
-- a group label such as `"g_5"` for groups defined by a single node, or `"g_5_12"` for union groups of multiple non-nested nodes;
+- a group label such as `"g_5"` for groups defined by a single node, or `"g_5_12"` for union groups;
 - `"+"` when there is an unresolved tie between groups;
 - `"-"` for groups that were collapsed because they contain fewer plots than `min_group_size`;
-- `NA` when no group wins for that plot.
-
-For union groups that include both ancestors and descendants, only the **topmost** ancestor is kept within that group. In those cases, the label is just the ancestor ID (e.g. `"g_5"`), not a combined ID.
-
-You can then attach these assignments to your plot header / metadata table.
+- `NA` when no group wins for that plot (all scores 0 or no eligible group).
 
 ---
 
@@ -252,30 +388,29 @@ If you have a header table `hea` with a column `releve_number`, you can add mult
 ```{r attach-assignments, eval=FALSE}
 library(dplyr)
 
-# Example strategies you want as separate columns
-strategies <- c("count", "cover", "phi_topo", "phi_cover_topo", "phi_cover")
+strategies <- c("count", "cover", "phi", "phi_cover")
 
 hea2 <- hea
 
+# choose one grouping definition:
+# parent_labels <- clusters_at_cut(res, phi_cut = 0.25, as_labels = TRUE)
+
 for (s in strategies) {
   rel_assigned <- assign_releves(
-    x              = res,
-    vegmatrix      = vm,
-    strategy       = s,
-    phi_cut        = 0.25,
-    min_phi        = 0.20,
-    min_group_size = 2
+    x               = res,
+    vegmatrix       = vm,
+    strategy        = s,
+    clusters        = parent_labels,
+    plot_membership = TRUE,
+    min_phi         = 0.20,
+    min_group_size  = 2
   )
 
   # Align by releve_number using the names of rel_assigned
-  idx <- match(hea2$releve_number, as.integer(names(rel_assigned)))
+  idx <- match(hea2$releve_number, as.integer(sub("^plot", "", names(rel_assigned))))
 
-  colname <- paste0("grp_", s)  # e.g. "grp_count", "grp_cover", ...
-
+  colname <- paste0("grp_", s)
   hea2[[colname]] <- rel_assigned[idx]
-
-  # Optional: turn "-" into NA instead of a literal dash
-  # hea2[[colname]][hea2[[colname]] == "-"] <- NA_character_
 }
 
 dplyr::glimpse(hea2)
@@ -290,9 +425,12 @@ See function help for details:
 - `?cocktail_cluster` – build the Cocktail tree, optionally with species–cluster phi  
 - `?cocktail_plot` – draw dendrograms (PDF/PNG or current device)  
 - `?clusters_at_cut` – parent clusters at a phi cut  
+- `?select_clusters` – select strong clusters by score  
 - `?species_in_clusters` – diagnostic species per node or node union  
-- `?cluster_phi_dist` – phi-based distances between clusters  
-- `?assign_releves` – assign plots to groups using covers and phi
+- `?releves_in_clusters` – list plots belonging to clusters or union groups  
+- `?clusters_with_species` – find clusters containing species  
+- `?cluster_phi_dist` – distances between clusters (direct co-membership φ)  
+- `?assign_releves` – assign plots to groups using covers and φ  
 
 ---
 

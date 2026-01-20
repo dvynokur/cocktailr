@@ -2,134 +2,148 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign releves (plots) to Cocktail groups using covers and species-cluster phi}
+\title{Assign relevés (plots) to Cocktail groups using covers and species-cluster phi}
 \usage{
 assign_releves(
   x,
   vegmatrix,
-  strategy = c("count", "cover", "phi_node", "phi_cover_node", "phi_cover", "phi"),
-  phi_cut = 0.3,
-  clusters = NULL,
-  min_phi = 0.2,
+  strategy = c("count", "cover", "phi", "phi_cover"),
+  clusters,
+  plot_membership = TRUE,
+  min_phi = NULL,
   min_group_size = 1L
 )
 }
 \arguments{
-\item{x}{A Cocktail object (list) with components
-\code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height},
-and \code{Plot.cluster} (e.g. from \code{\link{cocktail_cluster}()}).
-For strategies \code{"phi_node"}, \code{"phi_cover_node"},
-\code{"phi_cover"}, and \code{"phi"}, \code{x$Species.cluster.phi}
-should be present; otherwise a fallback is used.}
+\item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
+containing at least \code{Cluster.species}, \code{Cluster.merged},
+\code{Cluster.height}, and \code{Plot.cluster}. For phi-based strategies,
+\code{x$Species.cluster.phi} should be present.}
 
-\item{vegmatrix}{Numeric matrix or data.frame of covers (plots x species).
-Row names must include the plots in \code{x}; column names must include
-the species used in \code{x}. Missing values are treated as 0.}
+\item{vegmatrix}{Numeric matrix/data.frame of covers (plots \eqn{\times} species).
+Row names must include the plots in \code{x$Plot.cluster}, and column names must
+include species used in \code{x$Cluster.species}. Missing values are treated as 0.}
 
-\item{strategy}{One of
-\code{c("count","cover","phi_node","phi_cover_node","phi_cover","phi")}.}
+\item{strategy}{One of \code{c("count","cover","phi","phi_cover")}.}
 
-\item{phi_cut}{Numeric in (0,1). Height cut used to choose parent clusters
-(topmost nodes with height >= \code{phi_cut}) when \code{clusters} is not given.}
+\item{clusters}{Mandatory selection of clusters (nodes) defining groups.
+Can be:
+\itemize{
+\item a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
+where each element defines a separate group; or
+\item a \strong{list} of such vectors, where each element defines a \strong{union group}
+of nodes (OR of memberships).
+}
+Within each group, if both an ancestor and descendant are present,
+only the topmost (ancestor) is kept.}
 
-\item{clusters}{Optional selection of clusters instead of \code{phi_cut}.
-If a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
-each element defines a separate group. If a list, each element is a union
-of several nodes (OR of their memberships). Within each group, if both
-an ancestor and descendant are present, only the topmost (ancestor) is kept.}
+\item{plot_membership}{Logical. If \code{TRUE} (default), a group competes for a plot
+only if the plot is a Cocktail member of that group
+(based on \code{x$Plot.cluster > 0}, unioned across nodes in the group).
+If \code{FALSE}, all groups compete for all plots.}
 
-\item{min_phi}{Numeric in (0,1). Minimum \eqn{\phi} for strategies
-\code{"phi_cover"} and \code{"phi"}: species-group \eqn{\phi < \code{min_phi}}
-are set to 0. Ignored by other strategies. Default 0.2.}
+\item{min_phi}{NULL (default) or numeric in \eqn{[0,1]}.
+Only affects phi-based strategies (\code{"phi"}, \code{"phi_cover"}):
+\itemize{
+\item if \code{NULL}: use node-constituting species only (from \code{x$Cluster.species});
+\item if numeric: define candidate species by the full fidelity profile
+\eqn{\phi(s,g) \ge min\_phi}.
+}
+If \code{min_phi} is not \code{NULL} and is outside \eqn{[0,1]}, an error is raised.}
 
-\item{min_group_size}{Integer >= 1. After assignment, any group with fewer
-than this many plots is relabeled \code{"-"}. Default 1.}
+\item{min_group_size}{Integer >= 1. After assignment, any group with fewer plots
+than this threshold is relabeled \code{"-"}. Default 1.}
 }
 \value{
-A named character vector, with names = plot IDs and values = group labels
-(e.g. \code{"g_12"}, \code{"g_5_7"}), \code{"+"} for ties,
-\code{"-"} for groups collapsed by \code{min_group_size}, or \code{NA}
-when no group wins. An attribute \code{"details"} is attached with
-diagnostics (groups used, strategy, counts, etc.).
+A named character vector (names = plot IDs) with values:
+\itemize{
+\item group labels \code{"g_<id>"} or \code{"g_<id>_<id>_..."},
+\item \code{"+"} for ties,
+\item \code{"-"} for groups collapsed by \code{min_group_size},
+\item \code{NA} when no group wins (all scores 0 or no eligible group).
+}
+An attribute \code{"details"} is attached with diagnostics.
 }
 \description{
-Assign plots to groups derived from a Cocktail tree using:
+Assign plots (relevés) to user-defined groups of Cocktail nodes.
+
+Groups are defined explicitly by \code{clusters}:
 \itemize{
-\item \code{x$Plot.cluster} - cluster membership per plot (non-zero = member);
-\item \code{x$Cluster.species} - node-constituent species per node;
-\item \code{vegmatrix} - per-plot species covers (plots x species);
-\item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}.
+\item If \code{clusters} is a vector (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
+each element defines a separate group.
+\item If \code{clusters} is a \strong{list}, each list element defines a \strong{union group}
+of several nodes (OR of their plot membership vectors).
 }
 
-Strategies (per plot, per group):
+Each plot is assigned by scoring all groups and selecting the best-scoring group.
+Depending on \code{plot_membership}, scoring can be restricted to only those groups
+where the plot is a Cocktail member (based on \code{x$Plot.cluster > 0}, unioned across
+nodes within a group), or allowed for all groups.
+}
+\section{Strategies}{
+
+The \code{strategy} defines how group scores are computed (per plot, per group):
 
 \describe{
 
 \item{\code{"count"}}{
-For each cluster, count how many of its node-constituent species are present
-in the releve. The winner is the cluster with the largest count.
-If several clusters share the same maximum, the plot is labeled \code{"+"}.
-If no cluster has any species present, the plot gets \code{NA}.
+Counts how many of the group's candidate species are present in the plot.
+The group with the maximum count wins.
+Ties are labeled \code{"+"}. If all counts are 0, assignment is \code{NA}.
+
+Candidate species are always the node-constituting species
+(from \code{x$Cluster.species}), unioned across nodes within each group.
 }
 
 \item{\code{"cover"}}{
-For each cluster, sum the covers of its node-constituent species that are
-present in the releve. The winner is the cluster with the highest sum.
-If there is a tie, use the number of species (as in \code{"count"})
-as a tie-breaker; if still tied, label \code{"+"}. Plots with zero
-cover for all clusters get \code{NA}.
+Sums the cover values (from \code{vegmatrix}) of the group's candidate species
+present in the plot. The maximum sum wins.
+Ties are broken by species count; remaining ties are labeled \code{"+"}.
+If all sums are 0, assignment is \code{NA}.
 
-If \code{x$Plot.cluster} appears to be strictly binary (0/1), the function
-issues a warning and automatically falls back to \code{strategy = "count"}.
-}
-
-\item{\code{"phi_node"}}{
-Requires \code{x$Species.cluster.phi}. For each cluster and species,
-define \eqn{\phi(s,g)} as the maximum of \eqn{\phi} across that group's
-nodes (negatives set to 0). For a given plot, restrict to the cluster's
-node-constituent species that are present in the releve and sum their
-\eqn{\phi} values. The winner has the largest such sum. Ties are broken
-first by total cover of these species, then by their species count;
-if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
-}
-
-\item{\code{"phi_cover_node"}}{
-Requires \code{x$Species.cluster.phi}. As in \code{"phi_node"}, use
-the cluster's node-constituent species only, but score each cluster in a plot
-by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its node-constituent
-species present in the releve. The winner has the largest score.
-If there is a tie, use the number of these species as a tie-breaker;
-if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
-}
-
-\item{\code{"phi_cover"}}{
-Requires \code{x$Species.cluster.phi}. For each cluster and species,
-define \eqn{\phi(s,g)} as above, then keep only species with
-\eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these
-species that are present in the releve and compute the score:
-\eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)}. The winner has the largest
-score; ties are broken by total cover of these species, then by their
-species count; if still tied, label \code{"+"}. If all scores are 0,
-the plot gets \code{NA}.
+Candidate species are always the node-constituting species
+(from \code{x$Cluster.species}), unioned across nodes within each group.
 }
 
 \item{\code{"phi"}}{
-Requires \code{x$Species.cluster.phi}. For each cluster and species,
-define \eqn{\phi(s,g)} and keep only species with
-\eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these species
-that are present in the releve and sum their \eqn{\phi} values.
-The winner has the largest sum. Ties are broken by total cover of these
-species, then by their species count; if still tied, label \code{"+"}.
-If all sums are 0, the plot gets \code{NA}.
+Requires \code{x$Species.cluster.phi}. For each group and species, a group-level
+fidelity weight \eqn{\phi(s,g)} is defined as the maximum \eqn{\phi} across the
+group's nodes; negative values are set to 0.
+
+The score is the sum of \eqn{\phi(s,g)} across candidate species present in the plot.
+Ties are broken by total cover, then by species count; remaining ties are labeled \code{"+"}.
+If all scores are 0, assignment is \code{NA}.
+
+Candidate species depend on \code{min_phi}:
+\itemize{
+\item If \code{min_phi = NULL} (default): candidate species are the node-constituting species
+(from \code{x$Cluster.species}).
+\item If \code{min_phi} is numeric in \eqn{[0,1]}: candidate species are selected from the
+full fidelity profile as those with \eqn{\phi(s,g) \ge min\_phi}.
+}
+}
+
+\item{\code{"phi_cover"}}{
+Requires \code{x$Species.cluster.phi}. Uses \eqn{\phi(s,g)} defined as for \code{"phi"},
+but scores each group as \eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)} over candidate species
+present in the plot.
+
+Ties are broken by total cover, then by species count; remaining ties are labeled \code{"+"}.
+If all scores are 0, assignment is \code{NA}.
+
+Candidate species depend on \code{min_phi} exactly as in \code{"phi"}.
 }
 
 }
-
-If a phi-based strategy is requested but \code{x$Species.cluster.phi} is
-missing, the function issues a warning and automatically falls back to
-\code{"count"} (when \code{x$Plot.cluster} is binary) or \code{"cover"}
-(when it is not).
-
-Groups are defined either by \code{phi_cut} (parent nodes at that cut)
-or explicitly by \code{clusters}, which can define union groups of nodes.
 }
+
+\section{Missing \code{Species.cluster.phi}}{
+
+If \code{strategy} is \code{"phi"} or \code{"phi_cover"} but \code{x$Species.cluster.phi}
+is missing, the function warns and falls back to:
+\itemize{
+\item \code{"count"} if \code{plot_membership = TRUE}, or
+\item \code{"cover"} if \code{plot_membership = FALSE}.
+}
+}
+
