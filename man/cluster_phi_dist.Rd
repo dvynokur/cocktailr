@@ -2,111 +2,57 @@
 % Please edit documentation in R/cluster_phi_dist.R
 \name{cluster_phi_dist}
 \alias{cluster_phi_dist}
-\title{Distance between Cocktail clusters based on species fidelity (phi)}
+\title{Distance between Cocktail clusters based on direct co-membership phi}
 \usage{
-cluster_phi_dist(
-  x,
-  clusters = NULL,
-  min_phi = 0.2,
-  method = c("dot", "cosine", "pearson"),
-  phi_threshold = -1,
-  drop_nested_clusters = FALSE,
-  power_transform = TRUE
-)
+cluster_phi_dist(x, clusters = NULL)
 }
 \arguments{
-\item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
-containing at least:
-\itemize{
-\item \code{Cluster.species} - nodes x species (0/1),
-\item \code{Cluster.height} - numeric vector of merge phi for each node, and
-\item \code{Species.cluster.phi} - species x nodes phi-matrix.
-}
-Note: \code{Species.cluster.phi} is only present if
-\code{species_cluster_phi = TRUE} was used in \code{\link{cocktail_cluster}}.}
+\item{x}{A \code{"cocktail"} object from \code{\link{cocktail_cluster}},
+containing at least \code{Plot.cluster} and \code{Cluster.species}.}
 
-\item{clusters}{Optional cluster identifiers (nodes) to be compared. Can be a
-numeric vector of node indices (e.g. \code{c(12, 27)}) or a character vector
-of node labels (e.g. \code{c("c_12", "c_27")}). Each element refers to a
-single internal node; no grouping/union is performed.
+\item{clusters}{Optional cluster identifiers (internal nodes) to be compared.
+Can be numeric node IDs (e.g. \code{c(12, 27)}) or character labels
+(e.g. \code{c("c_12","c_27")}).
 If \code{NULL} or missing, all internal nodes
-\code{1:nrow(x$Cluster.species)} are candidates.}
-
-\item{min_phi}{Numeric scalar; minimum merge phi (cluster height) required for a
-node to be retained. Default \code{0.2}. Nodes whose corresponding
-\code{x$Cluster.height} value is \emph{strictly less} than \code{min_phi}
-are dropped before computing the distance. If fewer than two nodes remain,
-an error is raised.}
-
-\item{method}{Similarity method used to compare cluster fidelity profiles on
-the selected species set:
-\itemize{
-\item \code{"dot"}: mean elementwise product (mean of \code{A * B}). Since
-phi values are in \eqn{[-1, 1]}, similarity is also in \eqn{[-1, 1]}.
-\item \code{"cosine"}: cosine similarity
-\eqn{\frac{A \cdot B}{\|A\|\|B\|}} (returns 0 if a norm is 0).
-\item \code{"pearson"}: Pearson correlation (returns 0 if undefined, if
-variance is 0, or if fewer than 2 species are available).
-}}
-
-\item{phi_threshold}{Numeric scalar; lower threshold applied to the \emph{source}
-cluster in each directional comparison. For \eqn{A\to B}, only species with
-\eqn{\phi(s,A) \ge \mathrm{phi\_threshold}} are used. Default \code{-1}.
-Practical settings:
-\itemize{
-\item \code{-1}: include the full profile (includes \eqn{\phi=-1} as well).
-\item \code{0}: use only non-negative (positive or zero) fidelities in the source cluster.
-\item \code{0.2}: focus on meaningfully associated species in the source cluster.
-}
-Clusters with no species meeting this threshold are dropped before distance
-computation (with a warning).}
-
-\item{drop_nested_clusters}{Logical. If \code{TRUE}, clusters whose species
-sets are strict subsets of other retained clusters are dropped (based
-on \code{x$Cluster.species}). If \code{FALSE} (default), nested clusters
-are retained.}
-
-\item{power_transform}{Logical. If \code{TRUE} (default), apply a signed power
-transform with \eqn{\gamma=2} to phi values before computing similarities:
-\eqn{\tilde{\phi}=\mathrm{sign}(\phi)|\phi|^{2}}. If \code{FALSE}, use raw phi.}
+\code{1:nrow(x$Cluster.species)} are used.}
 }
 \value{
-A \code{\link[stats]{dist}} object of pairwise distances between clusters.
+A \code{\link[stats]{dist}} object with distances \eqn{d = 1-\phi}
+between clusters.
 }
 \description{
-Compute a phi-based distance between a set of Cocktail clusters (internal nodes)
-using species fidelity profiles taken directly from \code{x$Species.cluster.phi}.
+Computes pairwise distances between Cocktail clusters (internal nodes) by
+computing the \eqn{\phi} coefficient between their binary plot-membership
+vectors across all plots.
 
-For each pair of clusters \eqn{A,B}, similarity is computed twice (\eqn{A\to B}
-and \eqn{B\to A}) and then averaged. In the directional comparison \eqn{A\to B},
-only species with \eqn{\phi(s,A) \ge \mathrm{phi\_threshold}} are used; the
-corresponding \eqn{\phi(s,B)} values are taken as-is (can be negative). The
-final similarity is:
-\deqn{
-\mathrm{sim}(A,B)=\frac{1}{2}\left[\mathrm{sim}(A\to B)+\mathrm{sim}(B\to A)\right],
-}
-and the distance is \eqn{d(A,B)=1-\mathrm{sim}(A,B)}.
+Cluster membership is derived from \code{x$Plot.cluster} as:
+\code{membership = (Plot.cluster > 0)}. This works for both
+\code{plot_values = "binary"} and \code{plot_values = "rel_cover"}, because
+in both cases the stored values are positive for plots meeting the Cocktail
+membership threshold (m-threshold) of a node.
 
-Similarities are computed using one of three methods: \code{"dot"},
-\code{"cosine"}, or \code{"pearson"}.
+For clusters \eqn{A} and \eqn{B}, similarity is:
+\deqn{\mathrm{sim}(A,B) = \phi(A,B) \in [-1,1],}
+where \eqn{\phi(A,B)} is computed from the 2×2 contingency table of plot
+co-membership (plots in \eqn{A} vs. plots in \eqn{B}).
 
-Optionally, a signed power transform is applied to phi values prior to computing
-similarities to downweight near-zero values:
-\deqn{\tilde{\phi}=\mathrm{sign}(\phi)\,|\phi|^{\gamma}}
-with \eqn{\gamma = 2}.
+The distance is defined as:
+\deqn{d(A,B) = 1 - \phi(A,B).}
+
+Since \eqn{\phi \in [-1,1]}, distances lie in \eqn{[0,2]}.
 }
 \details{
-Let \eqn{\phi(s,k)} be the phi-coefficient between species \eqn{s} and cluster
-\eqn{k} stored in \code{x$Species.cluster.phi}. For clusters \eqn{A,B}, define
-the directional species subset \eqn{S_A=\{s:\phi(s,A)\ge \mathrm{phi\_threshold}\}}
-and compute \eqn{\mathrm{sim}(A\to B)} by the chosen \code{method} comparing
-\eqn{\phi(S_A,A)} to \eqn{\phi(S_A,B)} (optionally after power transformation).
-
-Distances are returned as \eqn{d(A,B)=1-\mathrm{sim}(A,B)}. For \code{"cosine"}
-and \code{"pearson"}, similarities lie in \eqn{[-1, 1]}, hence distances lie
-in \eqn{[0, 2]}. For \code{"dot"} as defined here (mean elementwise product),
-similarity also lies in \eqn{[-1, 1]} and distance in \eqn{[0, 2]}.
+Let \eqn{g_A} and \eqn{g_B} be the binary membership vectors (length = number
+of plots) for clusters \eqn{A} and \eqn{B}. The \eqn{\phi} coefficient is
+computed from the 2×2 table:
+\itemize{
+\item \eqn{a}: plots where \eqn{g_A=1} and \eqn{g_B=1},
+\item \eqn{b}: plots where \eqn{g_A=1} and \eqn{g_B=0},
+\item \eqn{c}: plots where \eqn{g_A=0} and \eqn{g_B=1},
+\item \eqn{d}: plots where \eqn{g_A=0} and \eqn{g_B=0}.
 }
-\seealso{
-\code{\link{cocktail_cluster}}, \code{\link{clusters_at_cut}}
+\deqn{
+\phi \;=\; \frac{ad - bc}{\sqrt{(a+c)(b+d)(a+b)(c+d)}}.
+}
+Undefined cases (zero denominator) are set to \eqn{\phi=0}.
 }
