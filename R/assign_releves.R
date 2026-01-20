@@ -1,143 +1,154 @@
-#' Assign releves (plots) to Cocktail groups using covers and species-cluster phi
+#' Assign relevés (plots) to Cocktail groups using covers and species-cluster phi
 #'
 #' @description
-#' Assign plots to groups derived from a Cocktail tree using:
+#' Assign plots (relevés) to user-defined groups of Cocktail nodes.
+#'
+#' Groups are defined explicitly by \code{clusters}:
 #' \itemize{
-#'   \item \code{x$Plot.cluster} - cluster membership per plot (non-zero = member);
-#'   \item \code{x$Cluster.species} - node-constituent species per node;
-#'   \item \code{vegmatrix} - per-plot species covers (plots x species);
-#'   \item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}.
+#'   \item If \code{clusters} is a vector (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
+#'         each element defines a separate group.
+#'   \item If \code{clusters} is a \strong{list}, each list element defines a \strong{union group}
+#'         of several nodes (OR of their plot membership vectors).
 #' }
 #'
-#' Strategies (per plot, per group):
+#' Each plot is assigned by scoring all groups and selecting the best-scoring group.
+#' Depending on \code{plot_membership}, scoring can be restricted to only those groups
+#' where the plot is a Cocktail member (based on \code{x$Plot.cluster > 0}, unioned across
+#' nodes within a group), or allowed for all groups.
+#'
+#' @section Strategies:
+#' The \code{strategy} defines how group scores are computed (per plot, per group):
 #'
 #' \describe{
 #'
 #' \item{\code{"count"}}{
-#'   For each cluster, count how many of its node-constituent species are present
-#'   in the releve. The winner is the cluster with the largest count.
-#'   If several clusters share the same maximum, the plot is labeled \code{"+"}.
-#'   If no cluster has any species present, the plot gets \code{NA}.
+#' Counts how many of the group's candidate species are present in the plot.
+#' The group with the maximum count wins.
+#' Ties are labeled \code{"+"}. If all counts are 0, assignment is \code{NA}.
+#'
+#' Candidate species are always the node-constituting species
+#' (from \code{x$Cluster.species}), unioned across nodes within each group.
 #' }
 #'
 #' \item{\code{"cover"}}{
-#'   For each cluster, sum the covers of its node-constituent species that are
-#'   present in the releve. The winner is the cluster with the highest sum.
-#'   If there is a tie, use the number of species (as in \code{"count"})
-#'   as a tie-breaker; if still tied, label \code{"+"}. Plots with zero
-#'   cover for all clusters get \code{NA}.
+#' Sums the cover values (from \code{vegmatrix}) of the group's candidate species
+#' present in the plot. The maximum sum wins.
+#' Ties are broken by species count; remaining ties are labeled \code{"+"}.
+#' If all sums are 0, assignment is \code{NA}.
 #'
-#'   If \code{x$Plot.cluster} appears to be strictly binary (0/1), the function
-#'   issues a warning and automatically falls back to \code{strategy = "count"}.
-#' }
-#'
-#' \item{\code{"phi_node"}}{
-#'   Requires \code{x$Species.cluster.phi}. For each cluster and species,
-#'   define \eqn{\phi(s,g)} as the maximum of \eqn{\phi} across that group's
-#'   nodes (negatives set to 0). For a given plot, restrict to the cluster's
-#'   node-constituent species that are present in the releve and sum their
-#'   \eqn{\phi} values. The winner has the largest such sum. Ties are broken
-#'   first by total cover of these species, then by their species count;
-#'   if still tied, label \code{"+"}. If all sums are 0, the plot gets \code{NA}.
-#' }
-#'
-#' \item{\code{"phi_cover_node"}}{
-#'   Requires \code{x$Species.cluster.phi}. As in \code{"phi_node"}, use
-#'   the cluster's node-constituent species only, but score each cluster in a plot
-#'   by the sum of \eqn{\mathrm{cover}(i,s)\,\phi(s,g)} over its node-constituent
-#'   species present in the releve. The winner has the largest score.
-#'   If there is a tie, use the number of these species as a tie-breaker;
-#'   if still tied, label \code{"+"}. Plots with all scores 0 get \code{NA}.
-#' }
-#'
-#' \item{\code{"phi_cover"}}{
-#'   Requires \code{x$Species.cluster.phi}. For each cluster and species,
-#'   define \eqn{\phi(s,g)} as above, then keep only species with
-#'   \eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these
-#'   species that are present in the releve and compute the score:
-#'   \eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)}. The winner has the largest
-#'   score; ties are broken by total cover of these species, then by their
-#'   species count; if still tied, label \code{"+"}. If all scores are 0,
-#'   the plot gets \code{NA}.
+#' Candidate species are always the node-constituting species
+#' (from \code{x$Cluster.species}), unioned across nodes within each group.
 #' }
 #'
 #' \item{\code{"phi"}}{
-#'   Requires \code{x$Species.cluster.phi}. For each cluster and species,
-#'   define \eqn{\phi(s,g)} and keep only species with
-#'   \eqn{\phi(s,g) \ge \code{min_phi}}. For a plot, restrict to these species
-#'   that are present in the releve and sum their \eqn{\phi} values.
-#'   The winner has the largest sum. Ties are broken by total cover of these
-#'   species, then by their species count; if still tied, label \code{"+"}.
-#'   If all sums are 0, the plot gets \code{NA}.
+#' Requires \code{x$Species.cluster.phi}. For each group and species, a group-level
+#' fidelity weight \eqn{\phi(s,g)} is defined as the maximum \eqn{\phi} across the
+#' group's nodes; negative values are set to 0.
+#'
+#' The score is the sum of \eqn{\phi(s,g)} across candidate species present in the plot.
+#' Ties are broken by total cover, then by species count; remaining ties are labeled \code{"+"}.
+#' If all scores are 0, assignment is \code{NA}.
+#'
+#' Candidate species depend on \code{min_phi}:
+#' \itemize{
+#'   \item If \code{min_phi = NULL} (default): candidate species are the node-constituting species
+#'         (from \code{x$Cluster.species}).
+#'   \item If \code{min_phi} is numeric in \eqn{[0,1]}: candidate species are selected from the
+#'         full fidelity profile as those with \eqn{\phi(s,g) \ge min\_phi}.
+#' }
+#' }
+#'
+#' \item{\code{"phi_cover"}}{
+#' Requires \code{x$Species.cluster.phi}. Uses \eqn{\phi(s,g)} defined as for \code{"phi"},
+#' but scores each group as \eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)} over candidate species
+#' present in the plot.
+#'
+#' Ties are broken by total cover, then by species count; remaining ties are labeled \code{"+"}.
+#' If all scores are 0, assignment is \code{NA}.
+#'
+#' Candidate species depend on \code{min_phi} exactly as in \code{"phi"}.
 #' }
 #'
 #' }
 #'
-#' If a phi-based strategy is requested but \code{x$Species.cluster.phi} is
-#' missing, the function issues a warning and automatically falls back to
-#' \code{"count"} (when \code{x$Plot.cluster} is binary) or \code{"cover"}
-#' (when it is not).
+#' @section Missing \code{Species.cluster.phi}:
+#' If \code{strategy} is \code{"phi"} or \code{"phi_cover"} but \code{x$Species.cluster.phi}
+#' is missing, the function warns and falls back to:
+#' \itemize{
+#'   \item \code{"count"} if \code{plot_membership = TRUE}, or
+#'   \item \code{"cover"} if \code{plot_membership = FALSE}.
+#' }
 #'
-#' Groups are defined either by \code{phi_cut} (parent nodes at that cut)
-#' or explicitly by \code{clusters}, which can define union groups of nodes.
+#' @param x A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
+#'   containing at least \code{Cluster.species}, \code{Cluster.merged},
+#'   \code{Cluster.height}, and \code{Plot.cluster}. For phi-based strategies,
+#'   \code{x$Species.cluster.phi} should be present.
 #'
-#' @param x A Cocktail object (list) with components
-#'   \code{Cluster.species}, \code{Cluster.merged}, \code{Cluster.height},
-#'   and \code{Plot.cluster} (e.g. from \code{\link{cocktail_cluster}()}).
-#'   For strategies \code{"phi_node"}, \code{"phi_cover_node"},
-#'   \code{"phi_cover"}, and \code{"phi"}, \code{x$Species.cluster.phi}
-#'   should be present; otherwise a fallback is used.
-#' @param vegmatrix Numeric matrix or data.frame of covers (plots x species).
-#'   Row names must include the plots in \code{x}; column names must include
-#'   the species used in \code{x}. Missing values are treated as 0.
-#' @param strategy One of
-#'   \code{c("count","cover","phi_node","phi_cover_node","phi_cover","phi")}.
-#' @param phi_cut Numeric in (0,1). Height cut used to choose parent clusters
-#'   (topmost nodes with height >= \code{phi_cut}) when \code{clusters} is not given.
-#' @param clusters Optional selection of clusters instead of \code{phi_cut}.
-#'   If a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
-#'   each element defines a separate group. If a list, each element is a union
-#'   of several nodes (OR of their memberships). Within each group, if both
-#'   an ancestor and descendant are present, only the topmost (ancestor) is kept.
-#' @param min_phi Numeric in (0,1). Minimum \eqn{\phi} for strategies
-#'   \code{"phi_cover"} and \code{"phi"}: species-group \eqn{\phi < \code{min_phi}}
-#'   are set to 0. Ignored by other strategies. Default 0.2.
-#' @param min_group_size Integer >= 1. After assignment, any group with fewer
-#'   than this many plots is relabeled \code{"-"}. Default 1.
+#' @param vegmatrix Numeric matrix/data.frame of covers (plots \eqn{\times} species).
+#'   Row names must include the plots in \code{x$Plot.cluster}, and column names must
+#'   include species used in \code{x$Cluster.species}. Missing values are treated as 0.
+#'
+#' @param strategy One of \code{c("count","cover","phi","phi_cover")}.
+#'
+#' @param clusters Mandatory selection of clusters (nodes) defining groups.
+#'   Can be:
+#'   \itemize{
+#'     \item a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
+#'           where each element defines a separate group; or
+#'     \item a \strong{list} of such vectors, where each element defines a \strong{union group}
+#'           of nodes (OR of memberships).
+#'   }
+#'   Within each group, if both an ancestor and descendant are present,
+#'   only the topmost (ancestor) is kept.
+#'
+#' @param plot_membership Logical. If \code{TRUE} (default), a group competes for a plot
+#'   only if the plot is a Cocktail member of that group
+#'   (based on \code{x$Plot.cluster > 0}, unioned across nodes in the group).
+#'   If \code{FALSE}, all groups compete for all plots.
+#'
+#' @param min_phi NULL (default) or numeric in \eqn{[0,1]}.
+#' Only affects phi-based strategies (\code{"phi"}, \code{"phi_cover"}):
+#' \itemize{
+#'   \item if \code{NULL}: use node-constituting species only (from \code{x$Cluster.species});
+#'   \item if numeric: define candidate species by the full fidelity profile
+#'     \eqn{\phi(s,g) \ge min\_phi}.
+#' }
+#' If \code{min_phi} is not \code{NULL} and is outside \eqn{[0,1]}, an error is raised.
+#'
+#' @param min_group_size Integer >= 1. After assignment, any group with fewer plots
+#'   than this threshold is relabeled \code{"-"}. Default 1.
 #'
 #' @return
-#' A named character vector, with names = plot IDs and values = group labels
-#' (e.g. \code{"g_12"}, \code{"g_5_7"}), \code{"+"} for ties,
-#' \code{"-"} for groups collapsed by \code{min_group_size}, or \code{NA}
-#' when no group wins. An attribute \code{"details"} is attached with
-#' diagnostics (groups used, strategy, counts, etc.).
+#' A named character vector (names = plot IDs) with values:
+#' \itemize{
+#'   \item group labels \code{"g_<id>"} or \code{"g_<id>_<id>_..."},
+#'   \item \code{"+"} for ties,
+#'   \item \code{"-"} for groups collapsed by \code{min_group_size},
+#'   \item \code{NA} when no group wins (all scores 0 or no eligible group).
+#' }
+#' An attribute \code{"details"} is attached with diagnostics.
 #'
+#' @import Matrix
 #' @export
 assign_releves <- function(
     x,
     vegmatrix,
-    strategy       = c("count","cover","phi_node","phi_cover_node","phi_cover","phi"),
-    phi_cut        = 0.30,
-    clusters       = NULL,   # vector or list (for unions)
-    min_phi        = 0.2,
-    min_group_size = 1L
+    strategy        = c("count","cover","phi","phi_cover"),
+    clusters,
+    plot_membership = TRUE,
+    min_phi         = NULL,
+    min_group_size  = 1L
 ) {
+
   ## ---- helpers ------------------------------------------------------------
   .is_cocktail <- function(obj) {
     is.list(obj) &&
       all(c("Cluster.species","Cluster.merged","Cluster.height","Plot.cluster") %in% names(obj))
   }
 
-  .parents_at_cut <- function(CM, H, cut) {
-    idx <- which(H >= cut)
-    if (!length(idx)) return(integer(0))
-    kids <- CM[idx, , drop = FALSE]
-    children <- unique(as.integer(kids[kids > 0]))
-    sort(setdiff(idx, intersect(idx, children)))
-  }
-
   .parse_clusters_arg <- function(v) {
-    if (is.null(v)) return(NULL)
+    if (missing(v) || is.null(v)) return(NULL)
+
     parse_one <- function(x) {
       if (is.character(x)) {
         as.integer(sub("^c_", "", x))
@@ -145,11 +156,12 @@ assign_releves <- function(
         as.integer(x)
       }
     }
+
     if (is.list(v)) {
       lapply(v, parse_one)
     } else {
-      lst <- as.list(v)
-      lapply(lst, parse_one)
+      # vector -> each element is its own group
+      lapply(as.list(v), parse_one)
     }
   }
 
@@ -160,21 +172,27 @@ assign_releves <- function(
     sort(setdiff(ids, intersect(ids, kids)))
   }
 
-  .build_groups <- function(CS, CM, H, PC, phi_cut, clusters) {
-    spp_all <- colnames(CS)
-
-    node_groups <- if (is.null(clusters)) {
-      as.list(.parents_at_cut(CM, H, phi_cut))
+  .ensure_pc_colnames <- function(PC) {
+    if (is.null(colnames(PC))) {
+      colnames(PC) <- paste0("c_", seq_len(ncol(PC)))
     } else {
-      .parse_clusters_arg(clusters)
+      num_only <- grepl("^\\d+$", colnames(PC))
+      colnames(PC)[num_only] <- paste0("c_", colnames(PC)[num_only])
+    }
+    PC
+  }
+
+  .build_groups <- function(CS, CM, PC, clusters) {
+    spp_all <- colnames(CS)
+    node_groups <- .parse_clusters_arg(clusters)
+
+    if (is.null(node_groups) || !length(node_groups)) {
+      stop("`clusters` must be provided and must define at least one group.")
     }
 
-    if (!length(node_groups)) {
-      stop("No groups available (check phi_cut or clusters).")
-    }
-
+    # validate IDs + keep only topmost nodes per group
     node_groups <- lapply(node_groups, function(ids) {
-      if (any(!is.finite(ids))) stop("`clusters` contains non-integer/invalid IDs.")
+      ids <- ids[is.finite(ids)]
       ids <- ids[ids > 0]
       .keep_topmost_within(ids, CM)
     })
@@ -185,28 +203,35 @@ assign_releves <- function(
     }
     node_groups <- node_groups[keep_group]
 
-    Glist        <- list()
+    PC <- .ensure_pc_colnames(PC)
+
+    Glist        <- vector("list", length(node_groups))
     lablist      <- character(length(node_groups))
     species_sets <- vector("list", length(node_groups))
 
     for (g in seq_along(node_groups)) {
       ids  <- node_groups[[g]]
       cols <- paste0("c_", ids)
+
       missing_cols <- setdiff(cols, colnames(PC))
       if (length(missing_cols)) {
-        stop("Internal mismatch: Plot.cluster is missing: ",
+        stop("Internal mismatch: x$Plot.cluster is missing columns: ",
              paste(missing_cols, collapse = ", "))
       }
-      sub_pc <- as.matrix(PC[, cols, drop = FALSE])
-      Gi <- rowSums(sub_pc != 0) > 0
+
+      # plot membership: union across nodes in the group
+      sub_pc <- PC[, cols, drop = FALSE]
+      Gi <- Matrix::rowSums(sub_pc != 0) > 0
       Glist[[g]] <- as.numeric(Gi)
 
+      # group label
       lablist[g] <- if (length(ids) == 1L) {
         paste0("g_", ids)
       } else {
         paste0("g_", paste(ids, collapse = "_"))
       }
 
+      # "membership species set" = union of node-constituting species across nodes
       sp_union_logical <- apply(CS[ids, , drop = FALSE] > 0, 2, any)
       species_sets[[g]] <- spp_all[sp_union_logical]
     }
@@ -215,26 +240,49 @@ assign_releves <- function(
     colnames(G) <- lablist
 
     list(
-      group_nodes       = node_groups,
-      group_labels      = lablist,
-      G                 = G,
-      species_sets_topo = species_sets
+      group_nodes            = node_groups,
+      group_labels           = lablist,
+      G                      = G,
+      species_sets_membership = species_sets
     )
   }
 
-  .is_binary_cluster <- function(PC) {
-    if (inherits(PC, "Matrix")) {
-      nz <- PC@x
-      if (!length(nz)) {
-        TRUE
-      } else {
-        all(nz %in% c(0, 1))
+  .choose_winner <- function(scores_primary,
+                             scores_second = NULL,
+                             scores_third  = NULL) {
+
+    ok <- !is.na(scores_primary)
+    if (!any(ok)) return(NA_character_)
+
+    x1 <- scores_primary[ok]
+    max1 <- max(x1)
+    if (!is.finite(max1) || max1 <= 0) return(NA_character_)
+
+    idx1 <- names(x1)[x1 == max1]
+    if (length(idx1) == 1L) return(idx1)
+
+    if (!is.null(scores_second)) {
+      s2 <- scores_second[idx1]
+      s2 <- s2[!is.na(s2)]
+      if (length(s2)) {
+        max2 <- max(s2)
+        idx2 <- names(s2)[s2 == max2]
+        if (length(idx2) == 1L) return(idx2)
+        idx1 <- idx2
       }
-    } else {
-      vals <- unique(as.vector(PC))
-      vals <- vals[!is.na(vals)]
-      if (!length(vals)) TRUE else all(vals %in% c(0, 1))
     }
+
+    if (!is.null(scores_third)) {
+      s3 <- scores_third[idx1]
+      s3 <- s3[!is.na(s3)]
+      if (length(s3)) {
+        max3 <- max(s3)
+        idx3 <- names(s3)[s3 == max3]
+        if (length(idx3) == 1L) return(idx3)
+      }
+    }
+
+    "+"
   }
 
   ## ---- checks / setup -----------------------------------------------------
@@ -244,69 +292,52 @@ assign_releves <- function(
     stop("`x` must be a Cocktail object with Cluster.species, Cluster.merged, Cluster.height, and Plot.cluster.")
   }
 
+  if (missing(clusters) || is.null(clusters)) {
+    stop("`clusters` must be provided. Use `clusters_at_cut()` to obtain nodes at a cut if needed.")
+  }
+
+  if (!is.logical(plot_membership) || length(plot_membership) != 1L || is.na(plot_membership)) {
+    stop("`plot_membership` must be a single logical value (TRUE/FALSE).")
+  }
+
+  # min_phi validity: NULL or numeric in [0,1]
+  if (!is.null(min_phi)) {
+    if (!is.numeric(min_phi) || length(min_phi) != 1L || is.na(min_phi)) {
+      stop("`min_phi` must be NULL or a single numeric value in [0,1].")
+    }
+    if (min_phi < 0 || min_phi > 1) {
+      stop("`min_phi` must be NULL or a numeric value in [0,1].")
+    }
+  }
+
   CS <- x$Cluster.species
   CM <- x$Cluster.merged
-  H  <- x$Cluster.height
   PC <- x$Plot.cluster
 
-  if (is.null(colnames(PC))) {
-    colnames(PC) <- paste0("c_", seq_len(ncol(PC)))
-  } else {
-    num_only <- grepl("^\\d+$", colnames(PC))
-    colnames(PC)[num_only] <- paste0("c_", colnames(PC)[num_only])
-  }
-
-  plot_names <- rownames(PC)
-  if (is.null(plot_names)) {
-    plot_names <- paste0("plot_", seq_len(nrow(PC)))
-    rownames(PC) <- plot_names
-  }
-
-  # check if Plot.cluster is effectively binary (0/1)
-  is_binary_PC <- .is_binary_cluster(PC)
-
-  # phi-based strategies: if phi matrix missing -> warn and fallback
-  if (strategy %in% c("phi_node","phi_cover_node","phi_cover","phi") &&
-      (!("Species.cluster.phi" %in% names(x)) || is.null(x$Species.cluster.phi))) {
-
-    fallback <- if (is_binary_PC) "count" else "cover"
-    warning(
-      "Strategy '", strategy, "' requires x$Species.cluster.phi, which is not present.\n",
-      "Recompute cocktail_cluster(..., species_cluster_phi = TRUE) to enable phi-based assignment.\n",
-      "Falling back to strategy '", fallback, "'."
-    )
-    strategy <- fallback
-  }
-
-  # cover strategy with binary Plot.cluster -> warn and fallback to count
-  if (strategy == "cover" && is_binary_PC) {
-    warning(
-      "Strategy 'cover' requested, but x$Plot.cluster appears to be binary (0/1).\n",
-      "If cover values are available, recompute cocktail_cluster(..., plot_values = \"rel_cover\") ",
-      "to enable cover-based assignment. Falling back to strategy 'count'."
-    )
-    strategy <- "count"
-  }
+  if (!is.matrix(CS)) stop("`x$Cluster.species` must be a matrix.")
 
   spp_all <- colnames(CS)
-  if (is.null(spp_all)) {
-    stop("`x$Cluster.species` must have species column names.")
-  }
+  if (is.null(spp_all)) stop("`x$Cluster.species` must have species column names.")
 
+  # vegmatrix
   if (missing(vegmatrix) || is.null(vegmatrix)) {
-    stop("`vegmatrix` (covers) must be provided.")
+    stop("`vegmatrix` must be provided (covers).")
   }
   vm <- as.matrix(vegmatrix)
   vm[is.na(vm)] <- 0
   storage.mode(vm) <- "double"
 
-  if (is.null(colnames(vm))) {
-    stop("`vegmatrix` must have species (column names).")
-  }
-  if (is.null(rownames(vm))) {
-    stop("`vegmatrix` must have plot (row names) matching `x$Plot.cluster`.")
+  if (is.null(rownames(vm))) stop("`vegmatrix` must have plot row names.")
+  if (is.null(colnames(vm))) stop("`vegmatrix` must have species column names.")
+
+  # plot names from Plot.cluster (or align to vegmatrix if missing)
+  plot_names <- rownames(PC)
+  if (is.null(plot_names)) {
+    plot_names <- rownames(vm)
+    rownames(PC) <- plot_names
   }
 
+  # align plots
   if (!all(plot_names %in% rownames(vm))) {
     missing_pl <- setdiff(plot_names, rownames(vm))
     stop("`vegmatrix` is missing plots used in Cocktail: ",
@@ -315,51 +346,64 @@ assign_releves <- function(
   }
   vm <- vm[plot_names, , drop = FALSE]
 
+  # align species
   common <- intersect(colnames(vm), spp_all)
-  if (!length(common)) {
-    stop("No overlapping species between `vegmatrix` and Cocktail species.")
-  }
+  if (!length(common)) stop("No overlapping species between `vegmatrix` and Cocktail species.")
   vm <- vm[, common, drop = FALSE]
+  CS <- CS[, common, drop = FALSE]
   spp_all <- common
-  CS <- CS[, spp_all, drop = FALSE]
 
   N <- nrow(vm)
 
-  grp <- .build_groups(CS, CM, H, PC, phi_cut, clusters)
-  group_labels      <- grp$group_labels
-  Ggrp              <- as.matrix(grp$G)           # N x G, 0/1
-  species_sets_topo <- grp$species_sets_topo     # list of length G
+  # Ensure Plot.cluster is a Matrix for sparse ops (only used for membership OR)
+  if (!inherits(PC, "Matrix")) {
+    PC <- Matrix::Matrix(as.matrix(PC), sparse = TRUE)
+  }
+  PC <- .ensure_pc_colnames(PC)
 
-  n_groups <- ncol(Ggrp)
+  # Build group definitions (membership vectors + membership species sets)
+  grp <- .build_groups(CS, CM, PC, clusters)
+  group_labels            <- grp$group_labels
+  Ggrp                    <- as.matrix(grp$G)                   # N x G, 0/1
+  species_sets_membership <- grp$species_sets_membership        # list length G
+  n_groups                <- ncol(Ggrp)
 
   min_group_size <- as.integer(min_group_size)
-  if (!is.finite(min_group_size) || min_group_size < 1L) {
-    min_group_size <- 1L
-  }
-  min_phi <- max(0, min(1, as.numeric(min_phi)))
+  if (!is.finite(min_group_size) || min_group_size < 1L) min_group_size <- 1L
 
   assigned <- rep(NA_character_, N)
   names(assigned) <- plot_names
 
+  # present species list per plot
   species_names <- colnames(vm)
-  present_list <- lapply(seq_len(N), function(i) {
-    species_names[ vm[i, ] > 0 ]
-  })
+  present_list <- lapply(seq_len(N), function(i) species_names[vm[i, ] > 0])
 
-  ## ---- phi precomputation if needed -----------------------------------------
+  ## ---- phi precomputation (only when needed) ------------------------------
+  need_phi <- strategy %in% c("phi","phi_cover")
+
   Phi_group_list <- NULL
   Phi_sets_phi   <- NULL
 
-  if (strategy %in% c("phi_node","phi_cover_node","phi_cover","phi")) {
+  if (need_phi) {
+    if (!("Species.cluster.phi" %in% names(x)) || is.null(x$Species.cluster.phi)) {
+      fallback <- if (isTRUE(plot_membership)) "count" else "cover"
+      warning(
+        "Strategy '", strategy, "' requires x$Species.cluster.phi, which is not present.\n",
+        "Recompute cocktail_cluster(..., species_cluster_phi = TRUE) to enable phi-based assignment.\n",
+        "Falling back to strategy '", fallback, "'."
+      )
+      strategy <- fallback
+      need_phi <- FALSE
+    }
+  }
+
+  if (need_phi) {
     Phi <- x$Species.cluster.phi
-    if (is.null(Phi) || !is.matrix(Phi)) {
-      stop("Internal error: phi-based strategy chosen but `x$Species.cluster.phi` is missing or not a matrix.")
-    }
+    if (!is.matrix(Phi)) stop("`x$Species.cluster.phi` must be a matrix.")
+    if (is.null(rownames(Phi))) stop("`x$Species.cluster.phi` must have species row names.")
+    if (is.null(colnames(Phi))) stop("`x$Species.cluster.phi` must have node column names (e.g. 'c_1').")
 
-    if (is.null(rownames(Phi))) {
-      stop("`x$Species.cluster.phi` must have species row names.")
-    }
-
+    # restrict Phi to overlapping species
     if (!all(spp_all %in% rownames(Phi))) {
       missing_sp <- setdiff(spp_all, rownames(Phi))
       stop("`Species.cluster.phi` is missing species: ",
@@ -369,9 +413,6 @@ assign_releves <- function(
     Phi <- Phi[spp_all, , drop = FALSE]
 
     node_colnames <- colnames(Phi)
-    if (is.null(node_colnames)) {
-      stop("`Species.cluster.phi` must have column names (node IDs, e.g. 'c_1').")
-    }
 
     .node_to_col_idx <- function(k) {
       cand1 <- paste0("c_", k)
@@ -386,69 +427,26 @@ assign_releves <- function(
 
     for (g in seq_len(n_groups)) {
       ids <- grp$group_nodes[[g]]
-      if (!length(ids)) {
-        Phi_group_list[[g]] <- stats::setNames(rep(0, length(spp_all)), spp_all)
-        Phi_sets_phi[[g]]   <- character(0)
-        next
-      }
       col_idx <- vapply(ids, .node_to_col_idx, integer(1L))
+
       if (anyNA(col_idx)) {
-        missing_ids <- ids[is.na(col_idx)]
         stop("`Species.cluster.phi` is missing columns for nodes: ",
-             paste(missing_ids, collapse = ", "))
+             paste(ids[is.na(col_idx)], collapse = ", "))
       }
+
+      # group phi profile: max across nodes
       Phi_g <- Phi[, col_idx, drop = FALSE]
       phi_s <- apply(Phi_g, 1L, max)
       phi_s[phi_s < 0] <- 0
-
       Phi_group_list[[g]] <- phi_s
 
-      if (strategy %in% c("phi_cover","phi")) {
+      # candidate set for full-profile mode (min_phi numeric)
+      if (!is.null(min_phi)) {
         Phi_sets_phi[[g]] <- names(phi_s)[phi_s >= min_phi]
       } else {
         Phi_sets_phi[[g]] <- NULL
       }
     }
-  }
-
-  ## ---- helper for tie-breaking --------------------------------------------
-  .choose_winner <- function(scores_primary,
-                             scores_second = NULL,
-                             scores_third  = NULL) {
-    ok <- !is.na(scores_primary)
-    if (!any(ok)) return(NA_character_)
-
-    x1 <- scores_primary[ok]
-    max1 <- max(x1)
-    if (max1 <= 0) return(NA_character_)
-
-    idx1 <- names(x1)[x1 == max1]
-    if (length(idx1) == 1L) return(idx1)
-
-    if (!is.null(scores_second)) {
-      s2 <- scores_second[idx1]
-      s2_ok <- !is.na(s2)
-      if (any(s2_ok)) {
-        s2 <- s2[s2_ok]
-        max2 <- max(s2)
-        idx2 <- names(s2)[s2 == max2]
-        if (length(idx2) == 1L) return(idx2)
-        idx1 <- idx2
-      }
-    }
-
-    if (!is.null(scores_third)) {
-      s3 <- scores_third[idx1]
-      s3_ok <- !is.na(s3)
-      if (any(s3_ok)) {
-        s3 <- s3[s3_ok]
-        max3 <- max(s3)
-        idx3 <- names(s3)[s3 == max3]
-        if (length(idx3) == 1L) return(idx3)
-      }
-    }
-
-    "+"
   }
 
   ## ---- loop over plots ----------------------------------------------------
@@ -458,114 +456,70 @@ assign_releves <- function(
     primary   <- rep(NA_real_, n_groups)
     secondary <- rep(NA_real_, n_groups)
     tertiary  <- rep(NA_real_, n_groups)
+
     names(primary)   <- group_labels
     names(secondary) <- group_labels
     names(tertiary)  <- group_labels
 
     for (g in seq_len(n_groups)) {
-      if (Ggrp[i, g] <= 0) next
 
-      topo_sp <- intersect(species_sets_topo[[g]], pres_sp)
+      # Restrict by Cocktail plot membership if requested
+      if (isTRUE(plot_membership) && Ggrp[i, g] <= 0) next
+
+      # Candidate species:
+      # - count/cover always use membership species sets (node-constituting)
+      # - phi/phi_cover:
+      #     * if min_phi NULL -> membership species sets
+      #     * if min_phi numeric -> full-profile phi-selected species
+      if (strategy %in% c("count","cover") || is.null(min_phi) || !need_phi) {
+        sp_use <- intersect(species_sets_membership[[g]], pres_sp)
+      } else {
+        sp_phi <- Phi_sets_phi[[g]]
+        sp_use <- intersect(sp_phi, pres_sp)
+      }
+
+      if (!length(sp_use)) next
 
       if (strategy == "count") {
-        n_sp <- length(topo_sp)
-        if (n_sp > 0) {
-          primary[g] <- n_sp
-        }
+        primary[g] <- length(sp_use)
         next
       }
 
       if (strategy == "cover") {
-        if (!length(topo_sp)) next
-        cov_vals <- vm[i, topo_sp, drop = TRUE]
-        Cg <- sum(cov_vals)
-        if (Cg > 0) {
-          primary[g]   <- Cg
-          secondary[g] <- length(topo_sp)
-        }
-        next
-      }
-
-      if (strategy == "phi_node") {
-        phi_s <- Phi_group_list[[g]]
-        if (is.null(phi_s) || !length(phi_s)) next
-        if (!length(topo_sp)) next
-        phi_use <- phi_s[topo_sp]
-        phi_use[is.na(phi_use)] <- 0
-        phi_sum <- sum(phi_use)
-        if (phi_sum <= 0) next
-
-        cov_vals <- vm[i, topo_sp, drop = TRUE]
-        Cg <- sum(cov_vals)
-        n_sp <- length(topo_sp)
-
-        primary[g]   <- phi_sum
-        secondary[g] <- Cg
-        tertiary[g]  <- n_sp
-        next
-      }
-
-      if (strategy == "phi_cover_node") {
-        phi_s <- Phi_group_list[[g]]
-        if (is.null(phi_s) || !length(phi_s)) next
-        if (!length(topo_sp)) next
-        phi_use <- phi_s[topo_sp]
-        phi_use[is.na(phi_use)] <- 0
-        cov_vals <- vm[i, topo_sp, drop = TRUE]
-        score <- sum(cov_vals * phi_use)
-        if (score <= 0) next
-
-        n_sp <- length(topo_sp)
-
-        primary[g]   <- score
-        secondary[g] <- n_sp
-        next
-      }
-
-      if (strategy == "phi_cover") {
-        phi_s <- Phi_group_list[[g]]
-        if (is.null(phi_s) || !length(phi_s)) next
-        sp_phi <- Phi_sets_phi[[g]]
-        if (!length(sp_phi)) next
-        sp_use <- intersect(sp_phi, pres_sp)
-        if (!length(sp_use)) next
-
-        phi_use <- phi_s[sp_use]
-        phi_use[is.na(phi_use)] <- 0
         cov_vals <- vm[i, sp_use, drop = TRUE]
-
-        score <- sum(cov_vals * phi_use)
-        if (score <= 0) next
-
-        Cg <- sum(cov_vals)
-        n_sp <- length(sp_use)
-
-        primary[g]   <- score
-        secondary[g] <- Cg
-        tertiary[g]  <- n_sp
+        sc <- sum(cov_vals)
+        if (sc > 0) {
+          primary[g]   <- sc
+          secondary[g] <- length(sp_use)
+        }
         next
       }
 
       if (strategy == "phi") {
         phi_s <- Phi_group_list[[g]]
-        if (is.null(phi_s) || !length(phi_s)) next
-        sp_phi <- Phi_sets_phi[[g]]
-        if (!length(sp_phi)) next
-        sp_use <- intersect(sp_phi, pres_sp)
-        if (!length(sp_use)) next
-
         phi_use <- phi_s[sp_use]
         phi_use[is.na(phi_use)] <- 0
-        phi_sum <- sum(phi_use)
-        if (phi_sum <= 0) next
+        sc <- sum(phi_use)
+        if (sc > 0) {
+          cov_vals <- vm[i, sp_use, drop = TRUE]
+          primary[g]   <- sc
+          secondary[g] <- sum(cov_vals)
+          tertiary[g]  <- length(sp_use)
+        }
+        next
+      }
 
+      if (strategy == "phi_cover") {
+        phi_s <- Phi_group_list[[g]]
+        phi_use <- phi_s[sp_use]
+        phi_use[is.na(phi_use)] <- 0
         cov_vals <- vm[i, sp_use, drop = TRUE]
-        Cg <- sum(cov_vals)
-        n_sp <- length(sp_use)
-
-        primary[g]   <- phi_sum
-        secondary[g] <- Cg
-        tertiary[g]  <- n_sp
+        sc <- sum(cov_vals * phi_use)
+        if (sc > 0) {
+          primary[g]   <- sc
+          secondary[g] <- sum(cov_vals)
+          tertiary[g]  <- length(sp_use)
+        }
         next
       }
     }
@@ -587,13 +541,13 @@ assign_releves <- function(
   }
 
   details <- list(
-    strategy         = strategy,
-    phi_cut          = phi_cut,
-    clusters         = clusters,
-    groups_used      = group_labels,
-    min_phi          = min_phi,
-    min_group_size   = min_group_size,
-    collapsed_groups = collapsed
+    strategy          = strategy,
+    clusters          = clusters,
+    plot_membership   = plot_membership,
+    min_phi           = min_phi,
+    groups_used       = group_labels,
+    min_group_size    = min_group_size,
+    collapsed_groups  = collapsed
   )
 
   structure(stats::setNames(assigned, names(assigned)), details = details)
