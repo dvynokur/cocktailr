@@ -245,17 +245,22 @@ releves_union
 #### (b) Find clusters that contain a given species (or set of species)
 
 ``` r
-# clusters that contain sp1
+# Clusters that contain sp1 (default: only clusters with merge phi >= 0 are returned)
 clusters_with_species(res, species = "sp1")
 #> [1] "c_2" "c_6"
 
-# clusters that contain BOTH sp1 and sp2
-cl <- clusters_with_species(res, 
-                      species = c("sp1", "sp2"),
-                      min_phi = 0.2,
-                      match = "all")
+# Clusters that contain BOTH sp1 and sp2,
+# restricted to clusters with merge phi >= 0.2
+cl <- clusters_with_species(
+  res,
+  species = c("sp1", "sp2"),
+  match   = "all",
+  min_phi = 0.2
+)
+
 cl
 #> [1] "c_2"
+
 # highlight clusters that contain both sp1 and sp2
 cocktail_plot(
   x              = res,
