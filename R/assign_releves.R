@@ -16,6 +16,9 @@
 #' where the plot is a Cocktail member (based on \code{x$Plot.cluster > 0}, unioned across
 #' nodes within a group), or allowed for all groups.
 #'
+#' The vegetation matrix used for assignment is taken from \code{x$vegmatrix}
+#' (stored in the Cocktail object by \code{cocktail_cluster(save_vegmatrix = TRUE)}).
+#'
 #' @section Strategies:
 #' The \code{strategy} defines how group scores are computed (per plot, per group):
 #'
@@ -31,7 +34,7 @@
 #' }
 #'
 #' \item{\code{"cover"}}{
-#' Sums the cover values (from \code{vegmatrix}) of the group's candidate species
+#' Sums the cover values (from \code{x$vegmatrix}) of the group's candidate species
 #' present in the plot. The maximum sum wins.
 #' Ties are broken by species count; remaining ties are labeled \code{"+"}.
 #' If all sums are 0, assignment is \code{NA}.
@@ -79,14 +82,17 @@
 #'   \item \code{"cover"} if \code{plot_membership = FALSE}.
 #' }
 #'
+#' @section Missing \code{x$vegmatrix}:
+#' The function requires a vegetation matrix stored in the Cocktail object
+#' (\code{x$vegmatrix}). If it is missing or \code{NULL} (e.g. because
+#' \code{cocktail_cluster(..., save_vegmatrix = FALSE)} was used), the function stops
+#' with an error. Recompute the Cocktail object with \code{save_vegmatrix = TRUE}.
+#'
 #' @param x A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
 #'   containing at least \code{Cluster.species}, \code{Cluster.merged},
 #'   \code{Cluster.height}, and \code{Plot.cluster}. For phi-based strategies,
-#'   \code{x$Species.cluster.phi} should be present.
-#'
-#' @param vegmatrix Numeric matrix/data.frame of covers (plots \eqn{\times} species).
-#'   Row names must include the plots in \code{x$Plot.cluster}, and column names must
-#'   include species used in \code{x$Cluster.species}. Missing values are treated as 0.
+#'   \code{x$Species.cluster.phi} should be present. The function also requires
+#'   \code{x$vegmatrix} (stored by \code{cocktail_cluster(save_vegmatrix = TRUE)}).
 #'
 #' @param strategy One of \code{c("count","cover","phi","phi_cover")}.
 #'
@@ -130,9 +136,9 @@
 #'
 #' @import Matrix
 #' @export
+
 assign_releves <- function(
     x,
-    vegmatrix,
     strategy        = c("count","cover","phi","phi_cover"),
     clusters,
     plot_membership = TRUE,
@@ -160,7 +166,6 @@ assign_releves <- function(
     if (is.list(v)) {
       lapply(v, parse_one)
     } else {
-      # vector -> each element is its own group
       lapply(as.list(v), parse_one)
     }
   }
@@ -190,7 +195,6 @@ assign_releves <- function(
       stop("`clusters` must be provided and must define at least one group.")
     }
 
-    # validate IDs + keep only topmost nodes per group
     node_groups <- lapply(node_groups, function(ids) {
       ids <- ids[is.finite(ids)]
       ids <- ids[ids > 0]
@@ -219,19 +223,16 @@ assign_releves <- function(
              paste(missing_cols, collapse = ", "))
       }
 
-      # plot membership: union across nodes in the group
       sub_pc <- PC[, cols, drop = FALSE]
       Gi <- Matrix::rowSums(sub_pc != 0) > 0
       Glist[[g]] <- as.numeric(Gi)
 
-      # group label
       lablist[g] <- if (length(ids) == 1L) {
         paste0("g_", ids)
       } else {
         paste0("g_", paste(ids, collapse = "_"))
       }
 
-      # "membership species set" = union of node-constituting species across nodes
       sp_union_logical <- apply(CS[ids, , drop = FALSE] > 0, 2, any)
       species_sets[[g]] <- spp_all[sp_union_logical]
     }
@@ -240,9 +241,9 @@ assign_releves <- function(
     colnames(G) <- lablist
 
     list(
-      group_nodes            = node_groups,
-      group_labels           = lablist,
-      G                      = G,
+      group_nodes             = node_groups,
+      group_labels            = lablist,
+      G                       = G,
       species_sets_membership = species_sets
     )
   }
@@ -300,7 +301,6 @@ assign_releves <- function(
     stop("`plot_membership` must be a single logical value (TRUE/FALSE).")
   }
 
-  # min_phi validity: NULL or numeric in [0,1]
   if (!is.null(min_phi)) {
     if (!is.numeric(min_phi) || length(min_phi) != 1L || is.na(min_phi)) {
       stop("`min_phi` must be NULL or a single numeric value in [0,1].")
@@ -319,16 +319,22 @@ assign_releves <- function(
   spp_all <- colnames(CS)
   if (is.null(spp_all)) stop("`x$Cluster.species` must have species column names.")
 
-  # vegmatrix
-  if (missing(vegmatrix) || is.null(vegmatrix)) {
-    stop("`vegmatrix` must be provided (covers).")
+  # vegmatrix (stored in Cocktail object)
+  if (!("vegmatrix" %in% names(x)) || is.null(x$vegmatrix)) {
+    stop(
+      "`assign_releves()` requires a vegetation matrix stored in the Cocktail object (`x$vegmatrix`).\n",
+      "This object is missing or NULL.\n",
+      "Recompute the Cocktail object with `cocktail_cluster(..., save_vegmatrix = TRUE)`."
+    )
   }
-  vm <- as.matrix(vegmatrix)
+
+  vm <- x$vegmatrix
+  vm <- as.matrix(vm)
   vm[is.na(vm)] <- 0
   storage.mode(vm) <- "double"
 
-  if (is.null(rownames(vm))) stop("`vegmatrix` must have plot row names.")
-  if (is.null(colnames(vm))) stop("`vegmatrix` must have species column names.")
+  if (is.null(rownames(vm))) stop("`x$vegmatrix` must have plot row names.")
+  if (is.null(colnames(vm))) stop("`x$vegmatrix` must have species column names.")
 
   # plot names from Plot.cluster (or align to vegmatrix if missing)
   plot_names <- rownames(PC)
@@ -340,7 +346,7 @@ assign_releves <- function(
   # align plots
   if (!all(plot_names %in% rownames(vm))) {
     missing_pl <- setdiff(plot_names, rownames(vm))
-    stop("`vegmatrix` is missing plots used in Cocktail: ",
+    stop("`x$vegmatrix` is missing plots used in Cocktail: ",
          paste(head(missing_pl, 10), collapse = ", "),
          if (length(missing_pl) > 10) " ..." else "")
   }
@@ -348,24 +354,22 @@ assign_releves <- function(
 
   # align species
   common <- intersect(colnames(vm), spp_all)
-  if (!length(common)) stop("No overlapping species between `vegmatrix` and Cocktail species.")
+  if (!length(common)) stop("No overlapping species between `x$vegmatrix` and Cocktail species.")
   vm <- vm[, common, drop = FALSE]
   CS <- CS[, common, drop = FALSE]
   spp_all <- common
 
   N <- nrow(vm)
 
-  # Ensure Plot.cluster is a Matrix for sparse ops (only used for membership OR)
   if (!inherits(PC, "Matrix")) {
     PC <- Matrix::Matrix(as.matrix(PC), sparse = TRUE)
   }
   PC <- .ensure_pc_colnames(PC)
 
-  # Build group definitions (membership vectors + membership species sets)
   grp <- .build_groups(CS, CM, PC, clusters)
   group_labels            <- grp$group_labels
-  Ggrp                    <- as.matrix(grp$G)                   # N x G, 0/1
-  species_sets_membership <- grp$species_sets_membership        # list length G
+  Ggrp                    <- as.matrix(grp$G)
+  species_sets_membership <- grp$species_sets_membership
   n_groups                <- ncol(Ggrp)
 
   min_group_size <- as.integer(min_group_size)
@@ -374,7 +378,6 @@ assign_releves <- function(
   assigned <- rep(NA_character_, N)
   names(assigned) <- plot_names
 
-  # present species list per plot
   species_names <- colnames(vm)
   present_list <- lapply(seq_len(N), function(i) species_names[vm[i, ] > 0])
 
@@ -403,7 +406,6 @@ assign_releves <- function(
     if (is.null(rownames(Phi))) stop("`x$Species.cluster.phi` must have species row names.")
     if (is.null(colnames(Phi))) stop("`x$Species.cluster.phi` must have node column names (e.g. 'c_1').")
 
-    # restrict Phi to overlapping species
     if (!all(spp_all %in% rownames(Phi))) {
       missing_sp <- setdiff(spp_all, rownames(Phi))
       stop("`Species.cluster.phi` is missing species: ",
@@ -434,13 +436,11 @@ assign_releves <- function(
              paste(ids[is.na(col_idx)], collapse = ", "))
       }
 
-      # group phi profile: max across nodes
       Phi_g <- Phi[, col_idx, drop = FALSE]
       phi_s <- apply(Phi_g, 1L, max)
       phi_s[phi_s < 0] <- 0
       Phi_group_list[[g]] <- phi_s
 
-      # candidate set for full-profile mode (min_phi numeric)
       if (!is.null(min_phi)) {
         Phi_sets_phi[[g]] <- names(phi_s)[phi_s >= min_phi]
       } else {
@@ -463,14 +463,8 @@ assign_releves <- function(
 
     for (g in seq_len(n_groups)) {
 
-      # Restrict by Cocktail plot membership if requested
       if (isTRUE(plot_membership) && Ggrp[i, g] <= 0) next
 
-      # Candidate species:
-      # - count/cover always use membership species sets (node-constituting)
-      # - phi/phi_cover:
-      #     * if min_phi NULL -> membership species sets
-      #     * if min_phi numeric -> full-profile phi-selected species
       if (strategy %in% c("count","cover") || is.null(min_phi) || !need_phi) {
         sp_use <- intersect(species_sets_membership[[g]], pres_sp)
       } else {

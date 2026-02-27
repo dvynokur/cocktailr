@@ -15,6 +15,10 @@
 #'   containing either binary membership or relative cover per plot and node.
 #'   If you need a base R matrix, convert manually, e.g.:
 #'   `plot_cluster_dense <- as.matrix(res$Plot.cluster)`.
+#' - Optionally stores the internally used, cleaned and aligned vegetation matrix
+#'   (`vegmatrix`) as a **sparse `dgCMatrix`** (plots × species), which can be reused
+#'   in downstream functions (e.g. `assign_releves()`) without passing the original
+#'   vegetation table again.
 #' - Optionally writes **relative cover** into `Plot.cluster` instead of binary membership
 #'   via `plot_values = "rel_cover"`; relative cover is defined as
 #'   (sum of cluster species covers per plot) / (total cover of the plot),
@@ -41,6 +45,9 @@
 #'   membership (from `Plot.cluster > 0`). Set species_cluster_phi = `TRUE` if you plan
 #'   to use cluster_phi_dist() or species_in_clusters(..., species_cluster_phi = TRUE)
 #'   later (default `TRUE`).
+#' @param save_vegmatrix Logical; if `TRUE` (default), store the internally used,
+#'   cleaned and aligned vegetation matrix as a sparse `dgCMatrix` in the returned
+#'   object (`$vegmatrix`). Set to `FALSE` to reduce memory usage for large datasets.
 #'
 #' @return
 #' A list of class `"cocktail"` with:
@@ -57,6 +64,10 @@
 #'                                   (columns named `"c_<node_id>"`), with an attribute
 #'                                   `"group_info"` giving node sizes. `NULL` if
 #'                                   `species_cluster_phi = FALSE`.
+#'   \item `vegmatrix`             — (optional) **`dgCMatrix`** (n_plots × n_species): the internally used,
+#'                                   cleaned and aligned vegetation matrix (cover values, with `NA`
+#'                                   treated as 0), stored sparsely. Rows correspond to `plots` and
+#'                                   columns correspond to `species`. `NULL` if `save_vegmatrix = FALSE`.
 #'   \item `species`               — character vector of species names kept after cleaning.
 #'   \item `plots`                 — character vector of plot names.
 #' }
@@ -65,6 +76,10 @@
 #' - Binarization and removal of empty species happen internally and only affect the
 #'   set of columns that contribute to clustering. All returned components are aligned
 #'   to the species that had at least one presence after cleaning.
+#' - If `save_vegmatrix = TRUE`, the returned `vegmatrix` component stores the internally
+#'   used vegetation matrix after cleaning/alignment (same rows as `plots`, same columns
+#'   as `species`) as a sparse `dgCMatrix`, which can be reused in downstream functions.
+#'   Set `save_vegmatrix = FALSE` to reduce memory usage for large datasets.
 #' - For `plot_values = "rel_cover"`, relative cover is computed from the **original**
 #'   `vegmatrix` values (after converting `NA` to 0). For each merge, the function:
 #'   (1) identifies the cluster’s species, (2) sums their covers per plot,
@@ -85,22 +100,156 @@
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' @export
+
 cocktail_cluster <- function(
     vegmatrix,
     progress = TRUE,
     plot_values = c("binary", "rel_cover"),
-    species_cluster_phi = TRUE
+    species_cluster_phi = TRUE,
+    input_format = c("wide", "long"),
+    long = list(plot = "plot", species = "species", value = "value"),
+    save_vegmatrix = TRUE
 ) {
   plot_values <- match.arg(plot_values)
+  input_format <- match.arg(input_format)
 
   ## ---- input checks & setup ----
   if (!is.matrix(vegmatrix) && !is.data.frame(vegmatrix)) {
-    stop("vegmatrix must be a matrix or data.frame with plots in rows and species in columns.")
+    stop("vegmatrix must be a matrix or data.frame.")
+  }
+
+  .looks_like_long_input <- function(dat, long) {
+    is.data.frame(dat) &&
+      all(c(long$plot, long$species, long$value) %in% names(dat))
+  }
+
+  .coerce_long_to_matrices <- function(dat, long) {
+    if (!is.data.frame(dat)) {
+      stop("For input_format = \"long\", vegmatrix must be a data.frame.")
+    }
+
+    req <- c(long$plot, long$species, long$value)
+    miss <- setdiff(req, names(dat))
+    if (length(miss)) {
+      stop("Long-format input is missing required columns: ", paste(miss, collapse = ", "))
+    }
+
+    d <- dat[, req, drop = FALSE]
+    names(d) <- c("plot", "species", "value")
+
+    d <- d[!is.na(d$plot) & !is.na(d$species), , drop = FALSE]
+    if (!nrow(d)) stop("No valid rows left after removing NA plot/species IDs.")
+
+    if (!is.numeric(d$value)) {
+      val_num <- suppressWarnings(as.numeric(as.character(d$value)))
+      bad <- is.na(val_num) & !is.na(d$value)
+      if (any(bad)) {
+        stop("Long-format value column contains non-numeric values. ",
+             "Please recode cover values before using input_format = \"long\".")
+      }
+      d$value <- val_num
+    }
+    d$value[is.na(d$value)] <- 0
+
+    plot_levels <- unique(as.character(d$plot))
+    spp_levels  <- unique(as.character(d$species))
+    d$plot      <- factor(as.character(d$plot), levels = plot_levels)
+    d$species   <- factor(as.character(d$species), levels = spp_levels)
+
+    # Detect duplicate plot-species rows before aggregation
+    key <- paste0(as.character(d$plot), "\r", as.character(d$species))
+    dup_row_count <- sum(duplicated(key))
+    if (dup_row_count > 0L) {
+      dup_combo_count <- sum(table(key) > 1L)
+      warning(
+        dup_row_count, " duplicate plot-species row(s) detected in long-format input across ",
+        dup_combo_count, " duplicated plot-species combination(s). ",
+        "Values were aggregated using sum() and capped at 100. ",
+        "If you need different behavior (e.g., max/mean), please modify the input data before calling cocktail_cluster()."
+      )
+    }
+
+    d_agg <- stats::aggregate(value ~ plot + species, data = d, FUN = base::sum)
+
+    # Cap aggregated cover values at 100 (only affects long-format value aggregation)
+    n_cap <- sum(d_agg$value > 100, na.rm = TRUE)
+    if (n_cap > 0L) {
+      d_agg$value[d_agg$value > 100] <- 100
+    }
+
+    M_cover_sparse <- Matrix::sparseMatrix(
+      i = as.integer(d_agg$plot),
+      j = as.integer(d_agg$species),
+      x = d_agg$value,
+      dims = c(length(plot_levels), length(spp_levels)),
+      dimnames = list(plot_levels, spp_levels)
+    )
+
+    # Always drop empty plots; warn how many were removed
+    keep_rows <- Matrix::rowSums(M_cover_sparse != 0) > 0
+    n_empty <- sum(!keep_rows)
+    if (n_empty > 0L) {
+      warning(
+        n_empty, " empty plot(s) were detected in long-format input and dropped ",
+        "(all values were 0 after parsing/aggregation)."
+      )
+      M_cover_sparse <- M_cover_sparse[keep_rows, , drop = FALSE]
+    }
+
+    M_pa_sparse <- Matrix::drop0((M_cover_sparse > 0) * 1L)
+
+    list(
+      vm_raw = as.matrix(M_cover_sparse),
+      X0     = as(M_pa_sparse, "dgCMatrix"),
+      plots  = rownames(M_cover_sparse),
+      species = colnames(M_cover_sparse)
+    )
+  }
+
+  if (identical(input_format, "wide") && .looks_like_long_input(vegmatrix, long)) {
+    warning(
+      "input_format = \"wide\", but input also matches the specified long-format columns (",
+      paste(c(long$plot, long$species, long$value), collapse = ", "),
+      "). If this is a long table, use input_format = \"long\"."
+    )
+  }
+
+  if (identical(input_format, "long")) {
+    parsed <- .coerce_long_to_matrices(
+      dat = vegmatrix,
+      long = long
+    )
+
+    vm_raw  <- parsed$vm_raw
+    X0      <- parsed$X0
+    plots   <- parsed$plots
+    species <- parsed$species
+
+  } else {
+    # wide format (original behavior)
+    vm_raw <- as.matrix(vegmatrix)
+    vm_raw[is.na(vm_raw)] <- 0
+
+    vm <- vm_raw
+    vm <- (vm > 0) * 1L
+
+    plots   <- rownames(vm); if (is.null(plots))   plots   <- as.character(seq_len(nrow(vm)))
+    species <- colnames(vm); if (is.null(species)) species <- as.character(seq_len(ncol(vm)))
+
+    # Drop empty species columns (and align vm_raw)
+    keep <- colSums(vm) > 0L
+    if (!all(keep)) {
+      vm      <- vm[, keep, drop = FALSE]
+      vm_raw  <- vm_raw[, keep, drop = FALSE]
+      species <- species[keep]
+    }
+
+    X0 <- Matrix::Matrix(vm, sparse = TRUE)  # dgCMatrix (0/1)
+    rm(vm)
   }
 
   # Keep original covers for relative cover output and species-cluster phi
-  vm_raw <- as.matrix(vegmatrix)
-  vm_raw[is.na(vm_raw)] <- 0
+  # (vm_raw is now defined for both wide and long input)
 
   # Detect cover scale for warnings/forcing behavior
   detect_cover_scale <- function(M) {
@@ -134,29 +283,20 @@ cocktail_cluster <- function(
     }
   }
 
-  # Binarize for clustering
-  vm <- as.matrix(vegmatrix)
-  vm[is.na(vm)] <- 0
-  vm <- (vm > 0) * 1L
-
-  plots   <- rownames(vm); if (is.null(plots))   plots   <- as.character(seq_len(nrow(vm)))
-  species <- colnames(vm); if (is.null(species)) species <- as.character(seq_len(ncol(vm)))
-
-  # Drop empty species columns (and align vm_raw)
-  keep <- colSums(vm) > 0L
-  if (!all(keep)) {
-    vm      <- vm[, keep, drop = FALSE]
-    vm_raw  <- vm_raw[, keep, drop = FALSE]
-    species <- species[keep]
+  # Ensure alignment between cover matrix and sparse presence/absence matrix
+  if (!identical(dim(vm_raw), dim(X0))) {
+    stop("Internal error: vm_raw and X0 dimensions are not aligned.")
+  }
+  if (!identical(rownames(vm_raw), rownames(X0))) {
+    stop("Internal error: row names of vm_raw and X0 are not aligned.")
+  }
+  if (!identical(colnames(vm_raw), colnames(X0))) {
+    stop("Internal error: column names of vm_raw and X0 are not aligned.")
   }
 
-  N <- nrow(vm); n <- ncol(vm)
+  N <- nrow(X0); n <- ncol(X0)
   if (n < 2L) stop("After dropping empty species, need at least 2 species (columns).")
   if (N < 1L) stop("Need at least 1 plot (row).")
-
-  # species-only sparse matrix
-  X0 <- Matrix::Matrix(vm, sparse = TRUE)  # dgCMatrix (0/1)
-  rm(vm)
 
   # global frequencies for Expected.plot.freq (from original species)
   p.freq <- as.numeric(Matrix::colSums(X0)) / N
@@ -561,6 +701,13 @@ cocktail_cluster <- function(
     Species.cluster.phi <- phi_sc
   }
 
+
+  ## ---- optionally store aligned vegetation matrix (cover values) as sparse dgCMatrix ----
+  vegmatrix_out <- NULL
+  if (isTRUE(save_vegmatrix)) {
+    vegmatrix_out <- as(Matrix::Matrix(vm_raw, sparse = TRUE), "dgCMatrix")
+  }
+
   ## ---- result ----
   res <- list(
     Cluster.species      = Cluster.species,
@@ -570,7 +717,8 @@ cocktail_cluster <- function(
     Cluster.height       = Cluster.height,
     Species.cluster.phi  = Species.cluster.phi,
     species              = species,
-    plots                = plots
+    plots                = plots,
+    vegmatrix            = vegmatrix_out
   )
   class(res) <- c("cocktail", class(res))
   res

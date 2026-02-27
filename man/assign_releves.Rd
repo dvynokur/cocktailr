@@ -6,7 +6,6 @@
 \usage{
 assign_releves(
   x,
-  vegmatrix,
   strategy = c("count", "cover", "phi", "phi_cover"),
   clusters,
   plot_membership = TRUE,
@@ -18,11 +17,8 @@ assign_releves(
 \item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
 containing at least \code{Cluster.species}, \code{Cluster.merged},
 \code{Cluster.height}, and \code{Plot.cluster}. For phi-based strategies,
-\code{x$Species.cluster.phi} should be present.}
-
-\item{vegmatrix}{Numeric matrix/data.frame of covers (plots \eqn{\times} species).
-Row names must include the plots in \code{x$Plot.cluster}, and column names must
-include species used in \code{x$Cluster.species}. Missing values are treated as 0.}
+\code{x$Species.cluster.phi} should be present. The function also requires
+\code{x$vegmatrix} (stored by \code{cocktail_cluster(save_vegmatrix = TRUE)}).}
 
 \item{strategy}{One of \code{c("count","cover","phi","phi_cover")}.}
 
@@ -79,6 +75,9 @@ Each plot is assigned by scoring all groups and selecting the best-scoring group
 Depending on \code{plot_membership}, scoring can be restricted to only those groups
 where the plot is a Cocktail member (based on \code{x$Plot.cluster > 0}, unioned across
 nodes within a group), or allowed for all groups.
+
+The vegetation matrix used for assignment is taken from \code{x$vegmatrix}
+(stored in the Cocktail object by \code{cocktail_cluster(save_vegmatrix = TRUE)}).
 }
 \section{Strategies}{
 
@@ -96,7 +95,7 @@ Candidate species are always the node-constituting species
 }
 
 \item{\code{"cover"}}{
-Sums the cover values (from \code{vegmatrix}) of the group's candidate species
+Sums the cover values (from \code{x$vegmatrix}) of the group's candidate species
 present in the plot. The maximum sum wins.
 Ties are broken by species count; remaining ties are labeled \code{"+"}.
 If all sums are 0, assignment is \code{NA}.
@@ -145,5 +144,13 @@ is missing, the function warns and falls back to:
 \item \code{"count"} if \code{plot_membership = TRUE}, or
 \item \code{"cover"} if \code{plot_membership = FALSE}.
 }
+}
+
+\section{Missing \code{x$vegmatrix}}{
+
+The function requires a vegetation matrix stored in the Cocktail object
+(\code{x$vegmatrix}). If it is missing or \code{NULL} (e.g. because
+\code{cocktail_cluster(..., save_vegmatrix = FALSE)} was used), the function stops
+with an error. Recompute the Cocktail object with \code{save_vegmatrix = TRUE}.
 }
 

@@ -6,6 +6,8 @@ cocktailr
   - [Background](#background)
   - [Installation](#installation)
   - [Typical workflow](#typical-workflow)
+    - [Long-format input](#long-format-input)
+    - [Notes on long-format input](#notes-on-long-format-input)
     - [1) Visualise the dendrogram](#1-visualise-the-dendrogram)
     - [2) Select clusters at a φ cut **or** select strongest clusters by
       score](#2-select-clusters-at-a-φ-cut-or-select-strongest-clusters-by-score)
@@ -33,7 +35,8 @@ Fast, reproducible *Cocktail* clustering for vegetation tables.
 
 **cocktailr** provides fast and reproducible *Cocktail* clustering of
 vegetation data, identifying groups of co-occurring species from **plots
-× species** tables. It uses optimized sparse-matrix calculations and φ
+× species** tables or **long-format vegetation tables**
+(plot–species–value). It uses optimized sparse-matrix calculations and φ
 (phi) coefficients to produce consistent, deterministic results, even
 for large vegetation databases.
 
@@ -91,6 +94,10 @@ remotes::install_github("dvynokur/cocktailr")
 
 ## Typical workflow
 
+`cocktail_cluster()` supports both **wide** (plots × species) and
+**long** (plot–species–value) input formats. The main example below uses
+a wide matrix; a compact long-format example is provided afterward.
+
 A small end-to-end example on a toy **plots × species** matrix, showing:
 
 1.  Cocktail clustering  
@@ -129,14 +136,114 @@ res <- cocktail_cluster(
   vegmatrix           = vm,
   progress            = FALSE,
   plot_values         = "rel_cover",
-  species_cluster_phi = TRUE
+  species_cluster_phi = TRUE,
+  save_vegmatrix      = TRUE   # default; needed later by assign_releves()
 )
 
 names(res)
-#> [1] "Cluster.species"     "Cluster.info"        "Plot.cluster"       
-#> [4] "Cluster.merged"      "Cluster.height"      "Species.cluster.phi"
-#> [7] "species"             "plots"
+#> [1] "Cluster.species"     "Cluster.info"        "Plot.cluster"        "Cluster.merged"     
+#> [5] "Cluster.height"      "Species.cluster.phi" "species"             "plots"              
+#> [9] "vegmatrix"
 ```
+
+`assign_releves()` reads the vegetation matrix from `res$vegmatrix`, so
+keep `save_vegmatrix = TRUE` (default) if you plan to use assignment
+later.
+
+For very large datasets, you can reduce memory usage by setting
+`save_vegmatrix = FALSE` in `cocktail_cluster()`. However, in that case
+`assign_releves()` will not work unless you recompute the Cocktail
+object with `save_vegmatrix = TRUE`.
+
+### Long-format input
+
+`cocktail_cluster()` also supports **long-format** vegetation tables
+when `input_format = "long"`.
+
+The default long-format column names are:
+
+- `plot` — plot / relevé ID
+- `species` — species name
+- `value` — numeric cover / abundance value
+
+Below, we convert the same toy matrix `vm` to long format and run
+`cocktail_cluster()`.
+
+``` r
+library(dplyr)
+library(tidyr)
+library(tibble)
+
+# Convert toy wide matrix/data frame -> long format
+vm_long <- as.data.frame(vm) %>%
+  rownames_to_column(var = "plot") %>%
+  pivot_longer(
+    cols = -plot,
+    names_to = "species",
+    values_to = "value"
+  )
+
+vm_long
+#> # A tibble: 64 × 3
+#>    plot  species value
+#>    <chr> <chr>   <dbl>
+#>  1 plot1 sp1        60
+#>  2 plot1 sp2        50
+#>  3 plot1 sp3        40
+#>  4 plot1 sp4        30
+#>  5 plot1 sp5         5
+#>  6 plot1 sp6         0
+#>  7 plot1 sp7        10
+#>  8 plot1 sp8         0
+#>  9 plot2 sp1        55
+#> 10 plot2 sp2        45
+#> # ℹ 54 more rows
+
+# Run Cocktail clustering on long-format input
+res_long <- cocktail_cluster(
+  vegmatrix = vm_long,
+  input_format = "long",
+  progress = FALSE
+)
+
+# Same output structure as for wide input
+names(res_long)
+#> [1] "Cluster.species"     "Cluster.info"        "Plot.cluster"        "Cluster.merged"     
+#> [5] "Cluster.height"      "Species.cluster.phi" "species"             "plots"              
+#> [9] "vegmatrix"
+```
+
+The returned Cocktail object also stores the internally used, aligned
+vegetation matrix in `res_long$vegmatrix` (sparse `dgCMatrix`) by
+default (`save_vegmatrix = TRUE`).
+
+When using long-format input, always set `input_format = "long"`
+explicitly.
+
+If your long table uses different column names, provide a mapping via
+`long = list(...)`:
+
+``` r
+res_long2 <- cocktail_cluster(
+  vegmatrix = my_long_table,
+  input_format = "long",
+  long = list(
+    plot = "PlotObservationID",
+    species = "Harmonized_name_wfo",
+    value = "Relative_cover"
+  ),
+  progress = FALSE
+)
+```
+
+### Notes on long-format input
+
+- Duplicate plot–species rows are aggregated using `sum()` and capped at
+  100.
+- Empty plots (all zero after parsing/aggregation) are dropped
+  automatically.
+- The function issues warnings when duplicates are detected or empty
+  plots are dropped.
 
 ------------------------------------------------------------------------
 
@@ -404,7 +511,14 @@ cocktail_plot(
 ### 7) Assign plots (relevés) to groups
 
 `assign_releves()` assigns each plot to one of the provided cluster
-groups.
+groups using the vegetation matrix stored in the Cocktail object
+(`x$vegmatrix`).
+
+`assign_releves()` uses the vegetation matrix stored inside the Cocktail
+object (`x$vegmatrix`), which is created by `cocktail_cluster()` when
+`save_vegmatrix = TRUE` (default). If the Cocktail object was created
+with `save_vegmatrix = FALSE`, `assign_releves()` will stop with an
+error.
 
 Strategies:
 
@@ -437,7 +551,6 @@ groups share the same best score):
 ``` r
 assign_phi <- assign_releves(
   x               = res,
-  vegmatrix       = vm,
   strategy        = "count",
   clusters        = parent_labels,
   plot_membership = TRUE,
@@ -455,7 +568,6 @@ Example: assign to union groups defined by cluster-distance grouping:
 ``` r
 assign_unions <- assign_releves(
   x               = res,
-  vegmatrix       = vm,
   strategy        = "phi_cover",
   clusters        = node_groups,
   plot_membership = TRUE,
@@ -500,7 +612,6 @@ hea2 <- hea
 for (s in strategies) {
   rel_assigned <- assign_releves(
     x               = res,
-    vegmatrix       = vm,
     strategy        = s,
     clusters        = parent_labels,
     plot_membership = TRUE,

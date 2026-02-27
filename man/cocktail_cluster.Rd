@@ -8,7 +8,10 @@ cocktail_cluster(
   vegmatrix,
   progress = TRUE,
   plot_values = c("binary", "rel_cover"),
-  species_cluster_phi = TRUE
+  species_cluster_phi = TRUE,
+  input_format = c("wide", "long"),
+  long = list(plot = "plot", species = "species", value = "value"),
+  save_vegmatrix = TRUE
 )
 }
 \arguments{
@@ -35,6 +38,10 @@ coefficients between species presence (from binarized \code{vegmatrix}) and node
 membership (from \code{Plot.cluster > 0}). Set species_cluster_phi = \code{TRUE} if you plan
 to use cluster_phi_dist() or species_in_clusters(..., species_cluster_phi = TRUE)
 later (default \code{TRUE}).}
+
+\item{save_vegmatrix}{Logical; if \code{TRUE} (default), store the internally used,
+cleaned and aligned vegetation matrix as a sparse \code{dgCMatrix} in the returned
+object (\verb{$vegmatrix}). Set to \code{FALSE} to reduce memory usage for large datasets.}
 }
 \value{
 A list of class \code{"cocktail"} with:
@@ -51,6 +58,10 @@ coefficients between each species and each internal node
 (columns named \code{"c_<node_id>"}), with an attribute
 \code{"group_info"} giving node sizes. \code{NULL} if
 \code{species_cluster_phi = FALSE}.
+\item \code{vegmatrix}             — (optional) \strong{\code{dgCMatrix}} (n_plots × n_species): the internally used,
+cleaned and aligned vegetation matrix (cover values, with \code{NA}
+treated as 0), stored sparsely. Rows correspond to \code{plots} and
+columns correspond to \code{species}. \code{NULL} if \code{save_vegmatrix = FALSE}.
 \item \code{species}               — character vector of species names kept after cleaning.
 \item \code{plots}                 — character vector of plot names.
 }
@@ -69,6 +80,10 @@ lower-triangular distance matrix (scan by increasing column, then row).
 containing either binary membership or relative cover per plot and node.
 If you need a base R matrix, convert manually, e.g.:
 \code{plot_cluster_dense <- as.matrix(res$Plot.cluster)}.
+\item Optionally stores the internally used, cleaned and aligned vegetation matrix
+(\code{vegmatrix}) as a \strong{sparse \code{dgCMatrix}} (plots × species), which can be reused
+in downstream functions (e.g. \code{assign_releves()}) without passing the original
+vegetation table again.
 \item Optionally writes \strong{relative cover} into \code{Plot.cluster} instead of binary membership
 via \code{plot_values = "rel_cover"}; relative cover is defined as
 (sum of cluster species covers per plot) / (total cover of the plot),
@@ -84,6 +99,10 @@ Fast Cocktail agglomeration for a \strong{plots × species} table.
 \item Binarization and removal of empty species happen internally and only affect the
 set of columns that contribute to clustering. All returned components are aligned
 to the species that had at least one presence after cleaning.
+\item If \code{save_vegmatrix = TRUE}, the returned \code{vegmatrix} component stores the internally
+used vegetation matrix after cleaning/alignment (same rows as \code{plots}, same columns
+as \code{species}) as a sparse \code{dgCMatrix}, which can be reused in downstream functions.
+Set \code{save_vegmatrix = FALSE} to reduce memory usage for large datasets.
 \item For \code{plot_values = "rel_cover"}, relative cover is computed from the \strong{original}
 \code{vegmatrix} values (after converting \code{NA} to 0). For each merge, the function:
 (1) identifies the cluster’s species, (2) sums their covers per plot,
