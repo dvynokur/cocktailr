@@ -1,22 +1,27 @@
 #' Cocktail clustering (sparse matrix)
 #'
-#' Fast Cocktail agglomeration for a **plots × species** table.
+#' Fast Cocktail agglomeration for vegetation data supplied either as a
+#' **plots × species** table (`input_format = "wide"`) or as a **long**
+#' plot–species–value table (`input_format = "long"`).
 #'
 #' @description
 #' This implementation:
-#' - **Binarizes** the input for clustering: values > 0 become 1; values ≤ 0 or `NA` become 0.
+#' - Accepts vegetation data in either **wide** or **long** format.
+#' - **Binarizes** the input for clustering: values > 0 become 1; values <= 0 or `NA` become 0.
 #' - **Drops empty species** (all-zero columns) before clustering (and keeps `vegmatrix` aligned).
-#' - Computes the association coefficient (“phi”) each round from one sparse
+#' - For **long** input, aggregates duplicate plot–species rows using `sum()`,
+#'   caps aggregated values at 100, and drops empty plots.
+#' - Computes the association coefficient (\eqn{\phi}) at each round from one sparse
 #'   crossproduct for speed and exactness.
 #' - Uses a **fixed, reproducible tie order**: when several pairs share the same
-#'   maximum phi at a step, they are processed in the same order that R fills the
+#'   maximum \eqn{\phi} at a step, they are processed in the same order that R fills the
 #'   lower-triangular distance matrix (scan by increasing column, then row).
-#' - Stores `Plot.cluster` as a **sparse `dgCMatrix`** (from the **Matrix** package),
+#' - Stores `Plot.cluster` as a sparse `dgCMatrix` (from the **Matrix** package),
 #'   containing either binary membership or relative cover per plot and node.
 #'   If you need a base R matrix, convert manually, e.g.:
 #'   `plot_cluster_dense <- as.matrix(res$Plot.cluster)`.
 #' - Optionally stores the internally used, cleaned and aligned vegetation matrix
-#'   (`vegmatrix`) as a **sparse `dgCMatrix`** (plots × species), which can be reused
+#'   (`vegmatrix`) as a sparse `dgCMatrix` (plots × species), which can be reused
 #'   in downstream functions (e.g. `assign_releves()`) without passing the original
 #'   vegetation table again.
 #' - Optionally writes **relative cover** into `Plot.cluster` instead of binary membership
@@ -27,24 +32,54 @@
 #'   a species × nodes matrix of \eqn{\phi} between species presence and node membership,
 #'   using sparse crossproducts internally.
 #'
-#' @param vegmatrix A matrix or data frame with **plots in rows** and **species in columns**.
-#'   This is used twice:
-#'   (1) it is **binarized** internally to drive the clustering, and
-#'   (2) its **original numeric values** (with `NA` treated as 0) are used to compute
+#' @param vegmatrix Vegetation data supplied either as:
+#'   \itemize{
+#'     \item a matrix or data frame with **plots in rows** and **species in columns**
+#'           when `input_format = "wide"`; or
+#'     \item a data frame in **long format** when `input_format = "long"`,
+#'           containing plot IDs, species IDs, and numeric values in the columns
+#'           specified by `long`.
+#'   }
+#'   The data are used twice:
+#'   (1) they are **binarized** internally to drive clustering, and
+#'   (2) their **original numeric values** (with `NA` treated as 0) are used to compute
 #'       relative cover when `plot_values = "rel_cover"`.
-#' @param progress  Logical; show a text progress bar (default `TRUE`).
+#'
+#' @param progress Logical; show a text progress bar (default `TRUE`).
+#'
 #' @param plot_values Character; one of `c("binary", "rel_cover")`.
-#'   - `"binary"` (default): `Plot.cluster` stores 0/1 plot membership per merge.
-#'   - `"rel_cover"`: `Plot.cluster` stores the **relative cover** per plot and merge:
-#'       sum of covers over the cluster’s species divided by the total cover of the plot,
-#'       but **only** for plots that meet the current merge’s m-threshold (membership);
-#'       non-member plots or plots with zero total cover are set to 0.
+#'   \itemize{
+#'     \item `"binary"` (default): `Plot.cluster` stores 0/1 plot membership per merge.
+#'     \item `"rel_cover"`: `Plot.cluster` stores the **relative cover** per plot and merge:
+#'           sum of covers over the cluster’s species divided by the total cover of the plot,
+#'           but **only** for plots that meet the current merge’s m-threshold (membership);
+#'           non-member plots or plots with zero total cover are set to 0.
+#'   }
+#'
 #' @param species_cluster_phi Logical; if `TRUE`, compute and return
 #'   `Species.cluster.phi`, a species × nodes matrix of \eqn{\phi} association
 #'   coefficients between species presence (from binarized `vegmatrix`) and node
-#'   membership (from `Plot.cluster > 0`). Set species_cluster_phi = `TRUE` if you plan
-#'   to use cluster_phi_dist() or species_in_clusters(..., species_cluster_phi = TRUE)
-#'   later (default `TRUE`).
+#'   membership (from `Plot.cluster > 0`). Set `species_cluster_phi = TRUE` if you plan
+#'   to use downstream functions that rely on species–cluster fidelity values,
+#'   such as `assign_releves()` with phi-based strategies or
+#'   `species_in_clusters(..., species_cluster_phi = TRUE)` (default `TRUE`).
+#'
+#' @param input_format Character; one of `c("wide", "long")`.
+#'   \itemize{
+#'     \item `"wide"` (default): `vegmatrix` is interpreted as a plots × species table.
+#'     \item `"long"`: `vegmatrix` is interpreted as a long-format data frame with
+#'           plot, species, and value columns specified by `long`.
+#'   }
+#'
+#' @param long A named list specifying the column names used when
+#'   `input_format = "long"`. Must contain:
+#'   \itemize{
+#'     \item `plot`   — column with plot/relevé IDs,
+#'     \item `species` — column with species names or species IDs,
+#'     \item `value`   — column with numeric abundance/cover values.
+#'   }
+#'   Ignored when `input_format = "wide"`.
+#'
 #' @param save_vegmatrix Logical; if `TRUE` (default), store the internally used,
 #'   cleaned and aligned vegetation matrix as a sparse `dgCMatrix` in the returned
 #'   object (`$vegmatrix`). Set to `FALSE` to reduce memory usage for large datasets.
@@ -54,48 +89,53 @@
 #' \itemize{
 #'   \item `Cluster.species`       — integer matrix (n_merges × n_species): species membership per merge.
 #'   \item `Cluster.info`          — integer matrix (n_merges × 2): columns `k` (cluster size) and `m` (threshold).
-#'   \item `Plot.cluster`          — **`dgCMatrix`** (n_plots × n_merges): plot values per merge
+#'   \item `Plot.cluster`          — `dgCMatrix` (n_plots × n_merges): plot values per merge
 #'                                   (0/1 for `"binary"`, relative cover for `"rel_cover"`).
 #'   \item `Cluster.merged`        — integer matrix (n_merges × 2): left/right children per merge
 #'                                   (negative = original species index; positive = earlier merge index).
-#'   \item `Cluster.height`        — numeric vector length n_merges: phi at each merge.
+#'   \item `Cluster.height`        — numeric vector of length n_merges: \eqn{\phi} at each merge.
 #'   \item `Species.cluster.phi`   — (optional) numeric matrix (species × nodes) of \eqn{\phi} association
 #'                                   coefficients between each species and each internal node
 #'                                   (columns named `"c_<node_id>"`), with an attribute
 #'                                   `"group_info"` giving node sizes. `NULL` if
 #'                                   `species_cluster_phi = FALSE`.
-#'   \item `vegmatrix`             — (optional) **`dgCMatrix`** (n_plots × n_species): the internally used,
+#'   \item `vegmatrix`             — (optional) `dgCMatrix` (n_plots × n_species): the internally used,
 #'                                   cleaned and aligned vegetation matrix (cover values, with `NA`
 #'                                   treated as 0), stored sparsely. Rows correspond to `plots` and
 #'                                   columns correspond to `species`. `NULL` if `save_vegmatrix = FALSE`.
 #'   \item `species`               — character vector of species names kept after cleaning.
-#'   \item `plots`                 — character vector of plot names.
+#'   \item `plots`                 — character vector of plot names kept after cleaning.
 #' }
 #'
 #' @details
 #' - Binarization and removal of empty species happen internally and only affect the
 #'   set of columns that contribute to clustering. All returned components are aligned
 #'   to the species that had at least one presence after cleaning.
+#' - For `input_format = "long"`, the function expects a data frame with plot,
+#'   species, and value columns specified by `long`. Rows with missing plot or
+#'   species IDs are removed. Duplicate plot–species combinations are aggregated
+#'   using `sum()`, and aggregated values above 100 are capped at 100. Plots with
+#'   zero total abundance after parsing are removed before clustering.
 #' - If `save_vegmatrix = TRUE`, the returned `vegmatrix` component stores the internally
 #'   used vegetation matrix after cleaning/alignment (same rows as `plots`, same columns
 #'   as `species`) as a sparse `dgCMatrix`, which can be reused in downstream functions.
 #'   Set `save_vegmatrix = FALSE` to reduce memory usage for large datasets.
 #' - For `plot_values = "rel_cover"`, relative cover is computed from the **original**
-#'   `vegmatrix` values (after converting `NA` to 0). For each merge, the function:
+#'   vegetation values (after converting `NA` to 0). For each merge, the function:
 #'   (1) identifies the cluster’s species, (2) sums their covers per plot,
 #'   (3) divides by the total cover in that plot (sum over all species), and
 #'   (4) **zeroes** values for plots that do not meet the m-threshold
-#'       (i.e., are not assigned to that merge) or have zero total cover.
+#'       (i.e. are not assigned to that merge) or have zero total cover.
 #' - Basic checks on the cover scale:
 #'   if input values appear **binary** (only 0/1) or contain **non-numeric codes**
-#'   (e.g., `+, r, 2a`), the function warns and **falls back to `"binary"`** output.
-#'   If values look **ordinal** (e.g., 1..6 / 1..10), the function warns but proceeds
+#'   (e.g. `+, r, 2a`), the function warns and **falls back to `"binary"`** output.
+#'   If values look **ordinal** (e.g. 1..6 / 1..10), the function warns but proceeds
 #'   to compute relative cover, noting that percentage cover is recommended.
-#' - `Species.cluster.phi` is computed from a 2×2 table for every (species,node) pair,
+#' - `Species.cluster.phi` is computed from a 2×2 table for every (species, node) pair,
 #'   using species presence (from binarized `vegmatrix`) and node membership
 #'   (from `Plot.cluster > 0`). Sparse crossproducts (`Matrix::crossprod`) are used
 #'   to obtain co-occurrence counts efficiently; invalid or zero denominators yield
-#'   \eqn{\phi}=0.
+#'   \eqn{\phi} = 0.
 #'
 #' @import Matrix
 #' @importFrom utils txtProgressBar setTxtProgressBar

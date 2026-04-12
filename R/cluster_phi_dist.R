@@ -125,7 +125,7 @@ cluster_phi_dist <- function(x, clusters = NULL) {
   phi[!is.finite(phi) | den <= 0] <- 0
   diag(phi) <- 1
 
-  ## ---- distance: always 1 - phi ------------------------------------------
+  ## ---- distance: 1 - phi ------------------------------------------
   Dmat <- 1 - phi
   diag(Dmat) <- 0
   dimnames(Dmat) <- list(labels, labels)

@@ -15,10 +15,17 @@ cocktail_cluster(
 )
 }
 \arguments{
-\item{vegmatrix}{A matrix or data frame with \strong{plots in rows} and \strong{species in columns}.
-This is used twice:
-(1) it is \strong{binarized} internally to drive the clustering, and
-(2) its \strong{original numeric values} (with \code{NA} treated as 0) are used to compute
+\item{vegmatrix}{Vegetation data supplied either as:
+\itemize{
+\item a matrix or data frame with \strong{plots in rows} and \strong{species in columns}
+when \code{input_format = "wide"}; or
+\item a data frame in \strong{long format} when \code{input_format = "long"},
+containing plot IDs, species IDs, and numeric values in the columns
+specified by \code{long}.
+}
+The data are used twice:
+(1) they are \strong{binarized} internally to drive clustering, and
+(2) their \strong{original numeric values} (with \code{NA} treated as 0) are used to compute
 relative cover when \code{plot_values = "rel_cover"}.}
 
 \item{progress}{Logical; show a text progress bar (default \code{TRUE}).}
@@ -35,9 +42,26 @@ non-member plots or plots with zero total cover are set to 0.
 \item{species_cluster_phi}{Logical; if \code{TRUE}, compute and return
 \code{Species.cluster.phi}, a species × nodes matrix of \eqn{\phi} association
 coefficients between species presence (from binarized \code{vegmatrix}) and node
-membership (from \code{Plot.cluster > 0}). Set species_cluster_phi = \code{TRUE} if you plan
-to use cluster_phi_dist() or species_in_clusters(..., species_cluster_phi = TRUE)
-later (default \code{TRUE}).}
+membership (from \code{Plot.cluster > 0}). Set \code{species_cluster_phi = TRUE} if you plan
+to use downstream functions that rely on species–cluster fidelity values,
+such as \code{assign_releves()} with phi-based strategies or
+\code{species_in_clusters(..., species_cluster_phi = TRUE)} (default \code{TRUE}).}
+
+\item{input_format}{Character; one of \code{c("wide", "long")}.
+\itemize{
+\item \code{"wide"} (default): \code{vegmatrix} is interpreted as a plots × species table.
+\item \code{"long"}: \code{vegmatrix} is interpreted as a long-format data frame with
+plot, species, and value columns specified by \code{long}.
+}}
+
+\item{long}{A named list specifying the column names used when
+\code{input_format = "long"}. Must contain:
+\itemize{
+\item \code{plot}   — column with plot/relevé IDs,
+\item \code{species} — column with species names or species IDs,
+\item \code{value}   — column with numeric abundance/cover values.
+}
+Ignored when \code{input_format = "wide"}.}
 
 \item{save_vegmatrix}{Logical; if \code{TRUE} (default), store the internally used,
 cleaned and aligned vegetation matrix as a sparse \code{dgCMatrix} in the returned
@@ -48,40 +72,43 @@ A list of class \code{"cocktail"} with:
 \itemize{
 \item \code{Cluster.species}       — integer matrix (n_merges × n_species): species membership per merge.
 \item \code{Cluster.info}          — integer matrix (n_merges × 2): columns \code{k} (cluster size) and \code{m} (threshold).
-\item \code{Plot.cluster}          — \strong{\code{dgCMatrix}} (n_plots × n_merges): plot values per merge
+\item \code{Plot.cluster}          — \code{dgCMatrix} (n_plots × n_merges): plot values per merge
 (0/1 for \code{"binary"}, relative cover for \code{"rel_cover"}).
 \item \code{Cluster.merged}        — integer matrix (n_merges × 2): left/right children per merge
 (negative = original species index; positive = earlier merge index).
-\item \code{Cluster.height}        — numeric vector length n_merges: phi at each merge.
+\item \code{Cluster.height}        — numeric vector of length n_merges: \eqn{\phi} at each merge.
 \item \code{Species.cluster.phi}   — (optional) numeric matrix (species × nodes) of \eqn{\phi} association
 coefficients between each species and each internal node
 (columns named \code{"c_<node_id>"}), with an attribute
 \code{"group_info"} giving node sizes. \code{NULL} if
 \code{species_cluster_phi = FALSE}.
-\item \code{vegmatrix}             — (optional) \strong{\code{dgCMatrix}} (n_plots × n_species): the internally used,
+\item \code{vegmatrix}             — (optional) \code{dgCMatrix} (n_plots × n_species): the internally used,
 cleaned and aligned vegetation matrix (cover values, with \code{NA}
 treated as 0), stored sparsely. Rows correspond to \code{plots} and
 columns correspond to \code{species}. \code{NULL} if \code{save_vegmatrix = FALSE}.
 \item \code{species}               — character vector of species names kept after cleaning.
-\item \code{plots}                 — character vector of plot names.
+\item \code{plots}                 — character vector of plot names kept after cleaning.
 }
 }
 \description{
 This implementation:
 \itemize{
-\item \strong{Binarizes} the input for clustering: values > 0 become 1; values ≤ 0 or \code{NA} become 0.
+\item Accepts vegetation data in either \strong{wide} or \strong{long} format.
+\item \strong{Binarizes} the input for clustering: values > 0 become 1; values <= 0 or \code{NA} become 0.
 \item \strong{Drops empty species} (all-zero columns) before clustering (and keeps \code{vegmatrix} aligned).
-\item Computes the association coefficient (“phi”) each round from one sparse
+\item For \strong{long} input, aggregates duplicate plot–species rows using \code{sum()},
+caps aggregated values at 100, and drops empty plots.
+\item Computes the association coefficient (\eqn{\phi}) at each round from one sparse
 crossproduct for speed and exactness.
 \item Uses a \strong{fixed, reproducible tie order}: when several pairs share the same
-maximum phi at a step, they are processed in the same order that R fills the
+maximum \eqn{\phi} at a step, they are processed in the same order that R fills the
 lower-triangular distance matrix (scan by increasing column, then row).
-\item Stores \code{Plot.cluster} as a \strong{sparse \code{dgCMatrix}} (from the \strong{Matrix} package),
+\item Stores \code{Plot.cluster} as a sparse \code{dgCMatrix} (from the \strong{Matrix} package),
 containing either binary membership or relative cover per plot and node.
 If you need a base R matrix, convert manually, e.g.:
 \code{plot_cluster_dense <- as.matrix(res$Plot.cluster)}.
 \item Optionally stores the internally used, cleaned and aligned vegetation matrix
-(\code{vegmatrix}) as a \strong{sparse \code{dgCMatrix}} (plots × species), which can be reused
+(\code{vegmatrix}) as a sparse \code{dgCMatrix} (plots × species), which can be reused
 in downstream functions (e.g. \code{assign_releves()}) without passing the original
 vegetation table again.
 \item Optionally writes \strong{relative cover} into \code{Plot.cluster} instead of binary membership
@@ -94,30 +121,37 @@ using sparse crossproducts internally.
 }
 }
 \details{
-Fast Cocktail agglomeration for a \strong{plots × species} table.
+Fast Cocktail agglomeration for vegetation data supplied either as a
+\strong{plots × species} table (\code{input_format = "wide"}) or as a \strong{long}
+plot–species–value table (\code{input_format = "long"}).
 \itemize{
 \item Binarization and removal of empty species happen internally and only affect the
 set of columns that contribute to clustering. All returned components are aligned
 to the species that had at least one presence after cleaning.
+\item For \code{input_format = "long"}, the function expects a data frame with plot,
+species, and value columns specified by \code{long}. Rows with missing plot or
+species IDs are removed. Duplicate plot–species combinations are aggregated
+using \code{sum()}, and aggregated values above 100 are capped at 100. Plots with
+zero total abundance after parsing are removed before clustering.
 \item If \code{save_vegmatrix = TRUE}, the returned \code{vegmatrix} component stores the internally
 used vegetation matrix after cleaning/alignment (same rows as \code{plots}, same columns
 as \code{species}) as a sparse \code{dgCMatrix}, which can be reused in downstream functions.
 Set \code{save_vegmatrix = FALSE} to reduce memory usage for large datasets.
 \item For \code{plot_values = "rel_cover"}, relative cover is computed from the \strong{original}
-\code{vegmatrix} values (after converting \code{NA} to 0). For each merge, the function:
+vegetation values (after converting \code{NA} to 0). For each merge, the function:
 (1) identifies the cluster’s species, (2) sums their covers per plot,
 (3) divides by the total cover in that plot (sum over all species), and
 (4) \strong{zeroes} values for plots that do not meet the m-threshold
-(i.e., are not assigned to that merge) or have zero total cover.
+(i.e. are not assigned to that merge) or have zero total cover.
 \item Basic checks on the cover scale:
 if input values appear \strong{binary} (only 0/1) or contain \strong{non-numeric codes}
-(e.g., \verb{+, r, 2a}), the function warns and \strong{falls back to \code{"binary"}} output.
-If values look \strong{ordinal} (e.g., 1..6 / 1..10), the function warns but proceeds
+(e.g. \verb{+, r, 2a}), the function warns and \strong{falls back to \code{"binary"}} output.
+If values look \strong{ordinal} (e.g. 1..6 / 1..10), the function warns but proceeds
 to compute relative cover, noting that percentage cover is recommended.
-\item \code{Species.cluster.phi} is computed from a 2×2 table for every (species,node) pair,
+\item \code{Species.cluster.phi} is computed from a 2×2 table for every (species, node) pair,
 using species presence (from binarized \code{vegmatrix}) and node membership
 (from \code{Plot.cluster > 0}). Sparse crossproducts (\code{Matrix::crossprod}) are used
 to obtain co-occurrence counts efficiently; invalid or zero denominators yield
-\eqn{\phi}=0.
+\eqn{\phi} = 0.
 }
 }
