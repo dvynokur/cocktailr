@@ -2,7 +2,7 @@
 % Please edit documentation in R/releves_in_clusters.R
 \name{releves_in_clusters}
 \alias{releves_in_clusters}
-\title{List plots (relevés) belonging to Cocktail clusters or cluster unions}
+\title{List plots (relevés) belonging to Cocktail clusters or combinations of clusters}
 \usage{
 releves_in_clusters(
   x,
@@ -18,31 +18,35 @@ containing \code{Plot.cluster}.}
 
 \item{clusters}{Cluster selection. Can be:
 \itemize{
-\item a character vector of node labels like \code{c("c_12","c_27")}, or
+\item a character vector of cluster labels like \code{c("c_12","c_27")}, or
 \item a numeric/integer vector like \code{c(12,27)}, or
-\item a list, where each element is a vector of labels/IDs defining a union group.
+\item a list, where each element is a vector of labels/IDs defining one
+combination of clusters.
 }}
 
 \item{values}{Logical; if \code{FALSE} (default), return plot IDs only.
-If \code{TRUE}, return per-plot membership \emph{values} for each cluster/group:
+If \code{TRUE}, return per-plot membership \emph{values} for each cluster or
+combination of clusters:
 \itemize{
-\item for a single cluster: the \code{Plot.cluster} values for that node;
-\item for a union group: the \emph{maximum} value across nodes (per plot),
-which corresponds to binary membership if \code{Plot.cluster} is binary,
-or the maximum relative cover value if \code{Plot.cluster} stores rel_cover.
+\item for a single cluster: the \code{Plot.cluster} values for that cluster;
+\item for a combination of clusters: the \emph{maximum} value across clusters
+(per plot), which corresponds to binary membership if \code{Plot.cluster}
+is binary, or the maximum relative cover value if \code{Plot.cluster}
+stores relative cover.
 }}
 
-\item{drop0}{Logical; if \code{TRUE} (default), drop plots with membership 0.
-If \code{FALSE}, keep all plots.}
+\item{drop0}{Logical; if \code{TRUE} (default), omit plots with membership value 0.
+If \code{FALSE}, keep all plots, including non-members with value 0.}
 
 \item{return}{Character; return format:
 \itemize{
-\item \code{"list"} (default): a list, one element per cluster/group.
+\item \code{"list"} (default): a list, one element per cluster or cluster combination.
 \item \code{"vector"}: only allowed when \code{clusters} defines exactly one
-cluster/group; returns a character vector of plot IDs (or numeric values if
-\code{values = TRUE}).
-\item \code{"matrix"}: return a matrix with plots in rows and clusters/groups
-in columns (only meaningful when \code{values = TRUE} or when keeping zeros).
+cluster or combination of clusters; returns a character vector of plot IDs
+(or numeric values if \code{values = TRUE}).
+\item \code{"matrix"}: return a matrix with plots in rows and selected clusters
+or cluster combinations in columns (mainly useful when \code{values = TRUE}
+or when keeping zeros).
 }}
 }
 \value{
@@ -50,8 +54,10 @@ Depending on \code{return}:
 \itemize{
 \item \code{"list"}: list of plot ID vectors (or named numeric vectors when
 \code{values = TRUE}).
-\item \code{"vector"}: plot IDs (or numeric membership values) for one group.
-\item \code{"matrix"}: numeric matrix with plots in rows and groups in columns.
+\item \code{"vector"}: plot IDs (or numeric membership values) for one selected
+cluster or cluster combination.
+\item \code{"matrix"}: numeric matrix with plots in rows and selected clusters
+or cluster combinations in columns.
 }
 }
 \description{
@@ -62,10 +68,10 @@ based on \code{x$Plot.cluster}. Cluster membership is defined as
 The \code{clusters} argument can define either:
 \itemize{
 \item a vector of cluster IDs/labels (each element treated as its own cluster), or
-\item a list of vectors (each list element treated as a \strong{union group} of
-clusters; membership is the union across nodes).
+\item a list of vectors (each list element treated as a \strong{combination of
+clusters}; membership is the union across the clusters in that set).
 }
 
-In union groups, a plot is considered a member if it is a member of
-\emph{any} node in that group (OR logic).
+For combinations of clusters, a plot is considered a member if it is a member of
+\emph{any} cluster in that set (OR logic).
 }

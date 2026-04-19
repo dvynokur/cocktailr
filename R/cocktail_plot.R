@@ -15,6 +15,7 @@
 #'   with components \code{Cluster.species}, \code{Cluster.merged},
 #'   and \code{Cluster.height}. If present, \code{x$species} is used
 #'   as the species names; otherwise \code{colnames(Cluster.species)}.
+#'
 #' @param file Optional path to output. If it ends in:
 #'   \itemize{
 #'     \item \code{".pdf"} — create a (multi-page) PDF;
@@ -23,39 +24,42 @@
 #'     \item anything else or \code{NULL} — draw only the first page
 #'           on the current graphics device.
 #'   }
+#'
 #' @param phi_cut Optional numeric. If given (and \code{clusters} is
 #'   \code{NULL}), draw background bands for parent clusters with
 #'   \eqn{\phi \ge \mathrm{phi\_cut}}, and a dashed horizontal line
 #'   at this \eqn{\phi} level across each page.
-#' @param label_clusters Logical. If \code{FALSE}, no internal node labels
+#'
+#' @param label_clusters Logical. If \code{FALSE}, no internal cluster labels
 #'   are drawn. If \code{TRUE}:
 #'   \itemize{
-#'     \item if \code{clusters} is supplied, label those cluster nodes
-#'           (topmost per group) at their elbows, except that any supplied
+#'     \item if \code{clusters} is supplied, label those clusters
+#'           (topmost per supplied cluster set) at their elbows, except that any supplied
 #'           clusters whose vertical branch crosses \code{y = 0} are labelled
 #'           \emph{only once} at \code{y = 0};
 #'     \item else if \code{phi_cut} is supplied, label the clusters at
 #'           the \eqn{\phi\_cut} level (where vertical branches cross the
 #'           dashed line);
-#'     \item else, label all internal nodes, with nodes whose vertical
+#'     \item else, label all internal clusters, with clusters whose vertical
 #'           branch crosses \code{y = 0} labelled only once at \code{y = 0}.
 #'   }
-#'   Labels are numeric node IDs.
-#' @param clusters Optional selection of clusters (nodes) to be shown as
+#'   Labels are numeric cluster IDs.
+#'
+#' @param clusters Optional selection of clusters to be shown as
 #'   coloured bands and used for labelling when \code{label_clusters = TRUE}.
 #'   Can be:
 #'   \itemize{
 #'     \item a vector like \code{c("c_12","c_27")} or \code{c(12,27)},
-#'           where each element defines a separate group; or
+#'           where each element specifies one highlighted cluster; or
 #'     \item a \strong{list} of such vectors, where each element defines
-#'           a \strong{union group} of nodes (e.g.
-#'           \code{list(c(1,4,6,14), c(2,12,17))} or your
-#'           \code{node_groups <- split(names(grp_nodes), grp_nodes)}).
+#'           a \strong{combination of clusters} (e.g.
+#'           \code{list(c(1,4,6,14), c(2,12,17))}).
 #'   }
-#'   Within each group, if both an ancestor and descendant are present,
+#'   Within each supplied cluster set, if both an ancestor and descendant are present,
 #'   only the topmost (ancestor) is used for elbow labelling and band
 #'   placement. All valid supplied IDs are considered for labels at
 #'   \eqn{\phi = 0} when their branch crosses that level.
+#'
 #' @param cex_species Expansion factor for species (tip) labels on the x-axis.
 #' @param cex_clusters Expansion factor for cluster-number labels.
 #' @param circle_inch Circle radius (inches) for the white/black bubble
@@ -83,6 +87,7 @@
 #' @importFrom graphics axis par segments mtext rect symbols text
 #' @importFrom grDevices hcl.colors adjustcolor pdf png dev.off hcl.pals rainbow
 #' @export
+
 cocktail_plot <- function(
     x, file = NULL,
     phi_cut        = NULL,

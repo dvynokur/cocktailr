@@ -19,14 +19,15 @@ select_clusters(
 containing at least \code{Cluster.species}, \code{Cluster.height}, and
 \code{Cluster.info} with columns \code{"k"} and \code{"m"}.}
 
-\item{clusters}{Optional cluster identifiers (nodes) to consider. Can be a numeric
-vector of node indices (e.g. \code{c(12, 27)}) or a character vector of labels
-(e.g. \code{c("c_12", "c_27")}). Each element refers to a single internal node.
-If \code{NULL} or missing, all internal nodes \code{1:nrow(x$Cluster.species)}
+\item{clusters}{Optional cluster identifiers to consider. Can be a numeric
+vector of cluster indices (e.g. \code{c(12, 27)}) or a character vector of labels
+(e.g. \code{c("c_12", "c_27")}). Each element refers to a single cluster.
+If \code{NULL} or missing, all clusters \code{1:nrow(x$Cluster.species)}
 are candidates.}
 
-\item{min_phi}{Numeric scalar; minimum merge phi required to keep a node.
-Default \code{0.2}. Nodes with \code{Cluster.height < min_phi} are dropped.}
+\item{min_phi}{Numeric scalar; minimum merge phi required for a cluster
+to be eligible. Default \code{0.2}. Clusters with \code{Cluster.height < min_phi}
+are dropped.}
 
 \item{min_k}{Integer; minimum number of species \code{k} required for a cluster
 to be eligible. Default \code{1}. This can be used to filter out very small
@@ -39,14 +40,14 @@ Default \code{1}. Set to \code{0} to allow the full selection (no score filterin
 \itemize{
 \item \code{"strict"} (default): exclude both ancestors and descendants of
 already selected clusters (no nested clusters are returned).
-\item \code{"top"}: keep only hierarchically highest clusters among the
+\item \code{"top"}: keep only the hierarchically highest clusters among the
 eligible set (drop descendants if an eligible ancestor exists).
 }}
 
 \item{return}{What to return:
 \itemize{
 \item \code{"labels"} (default): character labels like \code{"c_12"}.
-\item \code{"ids"}: integer node IDs.
+\item \code{"ids"}: integer cluster IDs.
 \item \code{"table"}: a data frame with selected clusters and their \code{h,k,m,score}.
 }}
 }
@@ -54,29 +55,29 @@ eligible set (drop descendants if an eligible ancestor exists).
 Depending on \code{return}:
 \itemize{
 \item \code{"labels"}: character vector of selected cluster labels.
-\item \code{"ids"}: integer vector of selected node IDs.
+\item \code{"ids"}: integer vector of selected cluster IDs.
 \item \code{"table"}: data frame of selected clusters sorted by decreasing score.
 }
 }
 \description{
-Selects internal Cocktail clusters (nodes) by ranking them with a combined score
-based on the Cocktail merge height \code{h} (phi), the number of species \code{k},
+Selects Cocktail clusters by ranking them with a combined score
+based on the Cocktail merge height \code{h}, the number of species \code{k},
 and the Cocktail membership threshold \code{m}.
 
 The scoring function is:
 \deqn{
-\mathrm{score}(k) = h_k \cdot \log(k_k) \cdot \log(m_k),
+\mathrm{score}_c = h_c \cdot \log(k_c) \cdot \log(m_c),
 }
 where:
 \itemize{
-\item \code{h_k} is \code{x$Cluster.height[k]} (merge phi),
-\item \code{k_k} is \code{x$Cluster.info[k,"k"]} (cluster size),
-\item \code{m_k} is \code{x$Cluster.info[k,"m"]} (Cocktail membership threshold).
+\item \code{h_c} is \code{x$Cluster.height[c]} (merge phi),
+\item \code{k_c} is \code{x$Cluster.info[c,"k"]} (cluster size),
+\item \code{m_c} is \code{x$Cluster.info[c,"m"]} (Cocktail membership threshold).
 }
 
 Clusters are selected strongest-first, using a greedy procedure in which eligible
 clusters are considered in descending score order (ties broken by larger \code{k},
-then smaller node ID).
+then smaller cluster ID).
 
 Nesting is controlled by \code{mode}:
 \itemize{

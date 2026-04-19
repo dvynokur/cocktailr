@@ -14,35 +14,34 @@ clusters_at_cut(x, phi_cut, as_labels = TRUE)
 \item{phi_cut}{Numeric scalar between 0 and 1 specifying the \eqn{\phi} cut level.}
 
 \item{as_labels}{Logical; if \code{TRUE} (default) return character labels
-like \code{"c_12"}. If \code{FALSE}, return integer node IDs.}
+like \code{"c_12"}. If \code{FALSE}, return integer cluster IDs.}
 }
 \value{
 A vector of cluster identifiers (character when \code{as_labels = TRUE},
-otherwise integers), sorted increasingly by node ID. May be length zero if
-no nodes exist at the requested cut.
+otherwise integers), sorted increasingly by cluster ID. May be length zero if
+no clusters exist at the requested cut.
 }
 \description{
-Return the Cocktail nodes that form the \strong{cluster partition} at a given
-\eqn{\phi} cut. These are the nodes with height \eqn{\ge \phi} that are
-\strong{not contained inside any other node} at or above the same cut.
+Return the Cocktail clusters that form the \strong{cluster partition} at a given
+\eqn{\phi} cut. These are the clusters with height \eqn{\ge \phi} that are
+\strong{not contained inside any other cluster} at or above the same cut.
 
 In other words, if you slice the Cocktail tree horizontally at height
-\code{phi}, the function returns exactly the nodes whose branches
+\code{phi_cut}, the function returns exactly the clusters whose branches
 intersect that cut line.
 }
 \details{
 The function:
 \enumerate{
-\item Finds all nodes whose height satisfies \code{Cluster.height >= phi_cut}.
+\item Finds all clusters whose height satisfies \code{Cluster.height >= phi_cut}.
 \item Looks at their children in \code{Cluster.merged}.
-\item Removes any node that appears as a child of another node that also
+\item Removes any cluster that appears as a child of another cluster that also
 meets the cut.
 }
 
-The remaining nodes are those that “touch” the cut line without being
-strictly inside another selected node. They correspond to the natural set
-of groups at that \eqn{\phi} level and are the same nodes used by functions
-like \code{\link{assign_releves}()} when only \code{phi_cut} is specified.
+The remaining clusters are those that “touch” the cut line without being
+strictly inside another selected cluster. They correspond to the natural set
+of clusters at that \eqn{\phi} level.
 }
 \seealso{
 \code{\link{assign_releves}}, \code{\link{cocktail_cluster}}

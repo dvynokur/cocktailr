@@ -40,8 +40,8 @@ non-member plots or plots with zero total cover are set to 0.
 }}
 
 \item{species_cluster_phi}{Logical; if \code{TRUE}, compute and return
-\code{Species.cluster.phi}, a species × nodes matrix of \eqn{\phi} association
-coefficients between species presence (from binarized \code{vegmatrix}) and node
+\code{Species.cluster.phi}, a species × clusters matrix of \eqn{\phi} association
+coefficients between species presence (from binarized \code{vegmatrix}) and cluster
 membership (from \code{Plot.cluster > 0}). Set \code{species_cluster_phi = TRUE} if you plan
 to use downstream functions that rely on species–cluster fidelity values,
 such as \code{assign_releves()} with phi-based strategies or
@@ -77,10 +77,10 @@ A list of class \code{"cocktail"} with:
 \item \code{Cluster.merged}        — integer matrix (n_merges × 2): left/right children per merge
 (negative = original species index; positive = earlier merge index).
 \item \code{Cluster.height}        — numeric vector of length n_merges: \eqn{\phi} at each merge.
-\item \code{Species.cluster.phi}   — (optional) numeric matrix (species × nodes) of \eqn{\phi} association
-coefficients between each species and each internal node
-(columns named \code{"c_<node_id>"}), with an attribute
-\code{"group_info"} giving node sizes. \code{NULL} if
+\item \code{Species.cluster.phi}   — (optional) numeric matrix (species × clusters) of \eqn{\phi} association
+coefficients between each species and each cluster
+(columns named \code{"c_<cluster_id>"}), with an attribute
+\code{"group_info"} giving cluster sizes. \code{NULL} if
 \code{species_cluster_phi = FALSE}.
 \item \code{vegmatrix}             — (optional) \code{dgCMatrix} (n_plots × n_species): the internally used,
 cleaned and aligned vegetation matrix (cover values, with \code{NA}
@@ -104,7 +104,7 @@ crossproduct for speed and exactness.
 maximum \eqn{\phi} at a step, they are processed in the same order that R fills the
 lower-triangular distance matrix (scan by increasing column, then row).
 \item Stores \code{Plot.cluster} as a sparse \code{dgCMatrix} (from the \strong{Matrix} package),
-containing either binary membership or relative cover per plot and node.
+containing either binary membership or relative cover per plot and cluster.
 If you need a base R matrix, convert manually, e.g.:
 \code{plot_cluster_dense <- as.matrix(res$Plot.cluster)}.
 \item Optionally stores the internally used, cleaned and aligned vegetation matrix
@@ -116,7 +116,7 @@ via \code{plot_values = "rel_cover"}; relative cover is defined as
 (sum of cluster species covers per plot) / (total cover of the plot),
 and values are zeroed for plots not meeting the m-threshold (cluster membership).
 \item Optionally computes \strong{species–cluster association coefficients} (\code{Species.cluster.phi}),
-a species × nodes matrix of \eqn{\phi} between species presence and node membership,
+a species × clusters matrix of \eqn{\phi} between species presence and cluster membership,
 using sparse crossproducts internally.
 }
 }
@@ -148,8 +148,8 @@ if input values appear \strong{binary} (only 0/1) or contain \strong{non-numeric
 (e.g. \verb{+, r, 2a}), the function warns and \strong{falls back to \code{"binary"}} output.
 If values look \strong{ordinal} (e.g. 1..6 / 1..10), the function warns but proceeds
 to compute relative cover, noting that percentage cover is recommended.
-\item \code{Species.cluster.phi} is computed from a 2×2 table for every (species, node) pair,
-using species presence (from binarized \code{vegmatrix}) and node membership
+\item \code{Species.cluster.phi} is computed from a 2×2 table for every (species, cluster) pair,
+using species presence (from binarized \code{vegmatrix}) and cluster membership
 (from \code{Plot.cluster > 0}). Sparse crossproducts (\code{Matrix::crossprod}) are used
 to obtain co-occurrence counts efficiently; invalid or zero denominators yield
 \eqn{\phi} = 0.

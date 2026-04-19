@@ -2,7 +2,7 @@
 % Please edit documentation in R/assign_releves.R
 \name{assign_releves}
 \alias{assign_releves}
-\title{Assign relevés (plots) to Cocktail groups using covers and species-cluster phi}
+\title{Assign relevés (plots) to candidate vegetation units using covers and species-cluster phi}
 \usage{
 assign_releves(
   x,
@@ -22,113 +22,128 @@ containing at least \code{Cluster.species}, \code{Cluster.merged},
 
 \item{strategy}{One of \code{c("count","cover","phi","phi_cover")}.}
 
-\item{clusters}{Mandatory selection of clusters (nodes) defining groups.
+\item{clusters}{Mandatory specification of candidate vegetation units.
 Can be:
 \itemize{
 \item a vector of labels/IDs (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
-where each element defines a separate group; or
-\item a \strong{list} of such vectors, where each element defines a \strong{union group}
-of nodes (OR of memberships).
+where each element defines a separate candidate vegetation unit
+represented by one cluster; or
+\item a \strong{list} of such vectors, where each list element defines one
+candidate vegetation unit represented by several clusters
+(OR of memberships).
 }
-Within each group, if both an ancestor and descendant are present,
-only the topmost (ancestor) is kept.}
+Within each candidate vegetation unit, if both an ancestor and descendant
+are present, only the topmost (ancestor) is kept.}
 
-\item{plot_membership}{Logical. If \code{TRUE} (default), a group competes for a plot
-only if the plot is a Cocktail member of that group
-(based on \code{x$Plot.cluster > 0}, unioned across nodes in the group).
-If \code{FALSE}, all groups compete for all plots.}
+\item{plot_membership}{Logical. If \code{TRUE} (default), a candidate vegetation
+unit competes for a plot only if the plot is already a Cocktail member of that
+unit (based on \code{x$Plot.cluster > 0}, combined across the clusters
+representing that unit). If \code{FALSE}, all candidate vegetation units
+compete for all plots.}
 
 \item{min_phi}{NULL (default) or numeric in \eqn{[0,1]}.
 Only affects phi-based strategies (\code{"phi"}, \code{"phi_cover"}):
 \itemize{
-\item if \code{NULL}: use node-constituting species only (from \code{x$Cluster.species});
+\item if \code{NULL}: use cluster-constituting species only
+(from \code{x$Cluster.species});
 \item if numeric: define candidate species by the full fidelity profile
-\eqn{\phi(s,g) \ge min\_phi}.
+\eqn{\phi(i,u) \ge min\_phi}.
 }
 If \code{min_phi} is not \code{NULL} and is outside \eqn{[0,1]}, an error is raised.}
 
-\item{min_group_size}{Integer >= 1. After assignment, any group with fewer plots
-than this threshold is relabeled \code{"-"}. Default 1.}
+\item{min_group_size}{Integer >= 1. After assignment, any candidate vegetation
+unit with fewer plots than this threshold is relabeled \code{"-"}. Default 1.}
 }
 \value{
 A named character vector (names = plot IDs) with values:
 \itemize{
-\item group labels \code{"g_<id>"} or \code{"g_<id>_<id>_..."},
+\item labels of the assigned candidate vegetation units
+(internally formatted as \code{"u_<id>"} or \code{"u_<id>_<id>_..."}),
 \item \code{"+"} for ties,
-\item \code{"-"} for groups collapsed by \code{min_group_size},
-\item \code{NA} when no group wins (all scores 0 or no eligible group).
+\item \code{"-"} for candidate vegetation units collapsed by \code{min_group_size},
+\item \code{NA} when no unit wins (all scores 0 or no eligible unit).
 }
 An attribute \code{"details"} is attached with diagnostics.
 }
 \description{
-Assign plots (relevés) to user-defined groups of Cocktail nodes.
+Assign plots (relevés) to user-defined candidate vegetation units represented
+by one or several Cocktail clusters.
 
-Groups are defined explicitly by \code{clusters}:
+Candidate vegetation units are defined explicitly by \code{clusters}:
 \itemize{
 \item If \code{clusters} is a vector (e.g. \code{c("c_12","c_27")} or \code{c(12,27)}),
-each element defines a separate group.
-\item If \code{clusters} is a \strong{list}, each list element defines a \strong{union group}
-of several nodes (OR of their plot membership vectors).
+each element defines a separate candidate vegetation unit represented by
+a single cluster.
+\item If \code{clusters} is a \strong{list}, each list element defines one
+candidate vegetation unit represented by several clusters
+(OR of their plot membership vectors).
 }
 
-Each plot is assigned by scoring all groups and selecting the best-scoring group.
-Depending on \code{plot_membership}, scoring can be restricted to only those groups
-where the plot is a Cocktail member (based on \code{x$Plot.cluster > 0}, unioned across
-nodes within a group), or allowed for all groups.
+Each plot is assigned by scoring all candidate vegetation units and selecting
+the best-scoring unit. Depending on \code{plot_membership}, scoring can be
+restricted to only those candidate vegetation units for which the plot is already
+a Cocktail member (based on \code{x$Plot.cluster > 0}, combined across the
+clusters representing that unit), or allowed for all candidate vegetation units.
 
 The vegetation matrix used for assignment is taken from \code{x$vegmatrix}
 (stored in the Cocktail object by \code{cocktail_cluster(save_vegmatrix = TRUE)}).
 }
 \section{Strategies}{
 
-The \code{strategy} defines how group scores are computed (per plot, per group):
+For each candidate vegetation unit \eqn{u}, the function defines a candidate
+species set \eqn{S_u}. The \code{strategy} determines how scores are computed
+per plot \eqn{p} and candidate vegetation unit \eqn{u}.
 
 \describe{
 
 \item{\code{"count"}}{
-Counts how many of the group's candidate species are present in the plot.
-The group with the maximum count wins.
+Counts how many species in \eqn{S_u} are present in the plot.
+The candidate vegetation unit with the maximum count wins.
 Ties are labeled \code{"+"}. If all counts are 0, assignment is \code{NA}.
 
-Candidate species are always the node-constituting species
-(from \code{x$Cluster.species}), unioned across nodes within each group.
+Candidate species are always the cluster-constituting species
+(from \code{x$Cluster.species}), unioned across the clusters representing
+each candidate vegetation unit.
 }
 
 \item{\code{"cover"}}{
-Sums the cover values (from \code{x$vegmatrix}) of the group's candidate species
+Sums the cover values (from \code{x$vegmatrix}) of species in \eqn{S_u}
 present in the plot. The maximum sum wins.
 Ties are broken by species count; remaining ties are labeled \code{"+"}.
 If all sums are 0, assignment is \code{NA}.
 
-Candidate species are always the node-constituting species
-(from \code{x$Cluster.species}), unioned across nodes within each group.
+Candidate species are always the cluster-constituting species
+(from \code{x$Cluster.species}), unioned across the clusters representing
+each candidate vegetation unit.
 }
 
 \item{\code{"phi"}}{
-Requires \code{x$Species.cluster.phi}. For each group and species, a group-level
-fidelity weight \eqn{\phi(s,g)} is defined as the maximum \eqn{\phi} across the
-group's nodes; negative values are set to 0.
+Requires \code{x$Species.cluster.phi}. For each candidate vegetation unit
+and species, a vegetation-unit-level fidelity weight \eqn{\phi(i,u)} is defined
+as the maximum \eqn{\phi} across the clusters representing that unit;
+negative values are set to 0.
 
-The score is the sum of \eqn{\phi(s,g)} across candidate species present in the plot.
-Ties are broken by total cover, then by species count; remaining ties are labeled \code{"+"}.
-If all scores are 0, assignment is \code{NA}.
+The score is the sum of \eqn{\phi(i,u)} across species in \eqn{S_u}
+present in the plot. Ties are broken by total cover, then by species count;
+remaining ties are labeled \code{"+"}. If all scores are 0, assignment is \code{NA}.
 
 Candidate species depend on \code{min_phi}:
 \itemize{
-\item If \code{min_phi = NULL} (default): candidate species are the node-constituting species
-(from \code{x$Cluster.species}).
-\item If \code{min_phi} is numeric in \eqn{[0,1]}: candidate species are selected from the
-full fidelity profile as those with \eqn{\phi(s,g) \ge min\_phi}.
+\item If \code{min_phi = NULL} (default): candidate species are the
+cluster-constituting species (from \code{x$Cluster.species}).
+\item If \code{min_phi} is numeric in \eqn{[0,1]}: candidate species are selected
+from the full fidelity profile as those with \eqn{\phi(i,u) \ge min\_phi}.
 }
 }
 
 \item{\code{"phi_cover"}}{
-Requires \code{x$Species.cluster.phi}. Uses \eqn{\phi(s,g)} defined as for \code{"phi"},
-but scores each group as \eqn{\sum \mathrm{cover}(i,s)\,\phi(s,g)} over candidate species
+Requires \code{x$Species.cluster.phi}. Uses \eqn{\phi(i,u)} defined as for
+\code{"phi"}, but scores each candidate vegetation unit as
+\eqn{\sum \mathrm{cover}(p,i)\,\phi(i,u)} over species in \eqn{S_u}
 present in the plot.
 
-Ties are broken by total cover, then by species count; remaining ties are labeled \code{"+"}.
-If all scores are 0, assignment is \code{NA}.
+Ties are broken by total cover, then by species count; remaining ties are labeled
+\code{"+"}. If all scores are 0, assignment is \code{NA}.
 
 Candidate species depend on \code{min_phi} exactly as in \code{"phi"}.
 }
@@ -138,8 +153,8 @@ Candidate species depend on \code{min_phi} exactly as in \code{"phi"}.
 
 \section{Missing \code{Species.cluster.phi}}{
 
-If \code{strategy} is \code{"phi"} or \code{"phi_cover"} but \code{x$Species.cluster.phi}
-is missing, the function warns and falls back to:
+If \code{strategy} is \code{"phi"} or \code{"phi_cover"} but
+\code{x$Species.cluster.phi} is missing, the function warns and falls back to:
 \itemize{
 \item \code{"count"} if \code{plot_membership = TRUE}, or
 \item \code{"cover"} if \code{plot_membership = FALSE}.

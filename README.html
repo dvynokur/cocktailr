@@ -624,10 +624,10 @@ diagnostics (helper functions)</a></li>
 Diagnostic species for selected clusters</a></li>
 <li><a href="#id_5-distances-between-clusters-direct-plot-co-membership-%CF%86">5)
 Distances between clusters (direct plot co-membership φ)</a></li>
-<li><a href="#id_6-visualise-grouped-nodes-on-the-cocktail-dendrogram">6)
-Visualise grouped nodes on the Cocktail dendrogram</a></li>
-<li><a href="#id_7-assign-plots-relev%C3%A9s-to-groups">7) Assign plots
-(relevés) to groups</a></li>
+<li><a href="#id_6-visualise-grouped-clusters-on-the-cocktail-dendrogram">6)
+Visualise grouped clusters on the Cocktail dendrogram</a></li>
+<li><a href="#id_7-assign-plots-relev%C3%A9s-to-candidate-vegetation-units">7)
+Assign plots (relevés) to candidate vegetation units</a></li>
 <li><a href="#optional-attach-assignments-to-a-header-data-frame">(Optional)
 Attach assignments to a header data frame</a></li>
 </ul></li>
@@ -636,7 +636,7 @@ Attach assignments to a header data frame</a></li>
 </ul>
 <h1 id="cocktailr-1">cocktailr</h1>
 <p>Fast, reproducible <em>Cocktail</em> clustering for vegetation
-tables.</p>
+data.</p>
 <hr />
 <h2 id="overview">Overview</h2>
 <p><strong>cocktailr</strong> provides fast and reproducible
@@ -656,16 +656,18 @@ cluster bands (<code>cocktail_plot()</code>).</li>
 (<code>clusters_at_cut()</code>).</li>
 <li><strong>Selection of strong clusters</strong> by a combined score
 (<code>select_clusters()</code>).</li>
-<li><strong>Diagnostic species lists</strong> for clusters or unions of
-clusters (<code>species_in_clusters()</code>).</li>
-<li>Listing <strong>plots (relevés) belonging to clusters or cluster
-unions</strong> (<code>releves_in_clusters()</code>).</li>
+<li><strong>Diagnostic species lists</strong> for clusters or
+combinations of clusters (<code>species_in_clusters()</code>).</li>
+<li>Listing <strong>plots (relevés) belonging to clusters or
+combinations of clusters</strong>
+(<code>releves_in_clusters()</code>).</li>
 <li>Finding <strong>clusters that contain a given species (or set of
 species)</strong> (<code>clusters_with_species()</code>).</li>
 <li><strong>Distances between clusters</strong> based on direct plot
 co-membership φ (<code>cluster_phi_dist()</code>).</li>
-<li><strong>Assignment of plots (relevés) to groups</strong> using
-cover- and φ-based strategies (<code>assign_releves()</code>).</li>
+<li><strong>Assignment of plots (relevés) to candidate vegetation
+units</strong> using cover- and φ-based strategies
+(<code>assign_releves()</code>).</li>
 </ul>
 <hr />
 <h2 id="background">Background</h2>
@@ -673,8 +675,8 @@ cover- and φ-based strategies (<code>assign_releves()</code>).</li>
 of species that co-occur more often than expected by chance and merges
 them hierarchically according to the <strong>phi coefficient of
 association</strong>. Each resulting cluster is characterized by its
-diagnostic species and a threshold (<em>m</em>) indicating how many
-group species a plot must contain to belong to it.</p>
+constituent species and a threshold (<em>m</em>) indicating how many
+species from that cluster a plot must contain to belong to it.</p>
 <p>For details, see the original works:</p>
 <ul>
 <li>Bruelheide, H. (2000). <em>A new measure of fidelity and its
@@ -700,12 +702,12 @@ matrix, showing:</p>
 <ol style="list-style-type: decimal">
 <li>Cocktail clustering</li>
 <li>Dendrogram plotting</li>
-<li>Select clusters at a φ cut <strong>or</strong> select strongest
-clusters by score</li>
-<li>Cluster diagnostics (new helper functions)</li>
+<li>Selection of clusters at a φ cut <strong>or</strong> selection of
+strongest clusters by score</li>
+<li>Cluster inspection utilities</li>
 <li>Species lists</li>
 <li>Distances between clusters</li>
-<li>Plot assignment</li>
+<li>Plot assignment to candidate vegetation units</li>
 </ol>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">library</span>(cocktailr)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
@@ -728,7 +730,7 @@ clusters by score</li>
 <span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>  )</span>
 <span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>)</span>
 <span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a></span>
-<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a><span class="co"># 1) Cocktail clustering, keeping relative cover and species–cluster phi</span></span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a><span class="co"># 1) Cocktail clustering, keeping relative cover and species-cluster phi</span></span>
 <span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a>res <span class="ot">&lt;-</span> <span class="fu">cocktail_cluster</span>(</span>
 <span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a>  <span class="at">vegmatrix           =</span> vm,</span>
 <span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a>  <span class="at">progress            =</span> <span class="cn">FALSE</span>,</span>
@@ -738,16 +740,15 @@ clusters by score</li>
 <span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a>)</span>
 <span id="cb2-30"><a href="#cb2-30" tabindex="-1"></a></span>
 <span id="cb2-31"><a href="#cb2-31" tabindex="-1"></a><span class="fu">names</span>(res)</span>
-<span id="cb2-32"><a href="#cb2-32" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Cluster.species&quot;     &quot;Cluster.info&quot;        &quot;Plot.cluster&quot;        &quot;Cluster.merged&quot;     </span></span>
-<span id="cb2-33"><a href="#cb2-33" tabindex="-1"></a><span class="co">#&gt; [5] &quot;Cluster.height&quot;      &quot;Species.cluster.phi&quot; &quot;species&quot;             &quot;plots&quot;              </span></span>
-<span id="cb2-34"><a href="#cb2-34" tabindex="-1"></a><span class="co">#&gt; [9] &quot;vegmatrix&quot;</span></span></code></pre></div>
+<span id="cb2-32"><a href="#cb2-32" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Cluster.species&quot;     &quot;Cluster.info&quot;        &quot;Plot.cluster&quot;        &quot;Cluster.merged&quot;      &quot;Cluster.height&quot;     </span></span>
+<span id="cb2-33"><a href="#cb2-33" tabindex="-1"></a><span class="co">#&gt; [6] &quot;Species.cluster.phi&quot; &quot;species&quot;             &quot;plots&quot;               &quot;vegmatrix&quot;</span></span></code></pre></div>
 <p><code>assign_releves()</code> reads the vegetation matrix from
 <code>res$vegmatrix</code>, so keep <code>save_vegmatrix = TRUE</code>
 (default) if you plan to use assignment later.</p>
 <p>For very large datasets, you can reduce memory usage by setting
 <code>save_vegmatrix = FALSE</code> in <code>cocktail_cluster()</code>.
-However, in that case <code>assign_releves()</code> will not work unless
-you recompute the Cocktail object with
+In that case, however, <code>assign_releves()</code> will not work
+unless you recompute the Cocktail object with
 <code>save_vegmatrix = TRUE</code>.</p>
 <h3 id="long-format-input">Long-format input</h3>
 <p><code>cocktail_cluster()</code> also supports
@@ -765,7 +766,7 @@ and run <code>cocktail_cluster()</code>.</p>
 <span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
 <span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">library</span>(tibble)</span>
 <span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co"># Convert toy wide matrix/data frame -&gt; long format</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co"># Convert the toy wide matrix to long format</span></span>
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>vm_long <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(vm) <span class="sc">%&gt;%</span></span>
 <span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="fu">rownames_to_column</span>(<span class="at">var =</span> <span class="st">&quot;plot&quot;</span>) <span class="sc">%&gt;%</span></span>
 <span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(</span>
@@ -792,42 +793,41 @@ and run <code>cocktail_cluster()</code>.</p>
 <span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a></span>
 <span id="cb3-30"><a href="#cb3-30" tabindex="-1"></a><span class="co"># Run Cocktail clustering on long-format input</span></span>
 <span id="cb3-31"><a href="#cb3-31" tabindex="-1"></a>res_long <span class="ot">&lt;-</span> <span class="fu">cocktail_cluster</span>(</span>
-<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a>  <span class="at">vegmatrix =</span> vm_long,</span>
+<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a>  <span class="at">vegmatrix    =</span> vm_long,</span>
 <span id="cb3-33"><a href="#cb3-33" tabindex="-1"></a>  <span class="at">input_format =</span> <span class="st">&quot;long&quot;</span>,</span>
-<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a>  <span class="at">progress =</span> <span class="cn">FALSE</span></span>
+<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a>  <span class="at">progress     =</span> <span class="cn">FALSE</span></span>
 <span id="cb3-35"><a href="#cb3-35" tabindex="-1"></a>)</span>
 <span id="cb3-36"><a href="#cb3-36" tabindex="-1"></a></span>
 <span id="cb3-37"><a href="#cb3-37" tabindex="-1"></a><span class="co"># Same output structure as for wide input</span></span>
 <span id="cb3-38"><a href="#cb3-38" tabindex="-1"></a><span class="fu">names</span>(res_long)</span>
-<span id="cb3-39"><a href="#cb3-39" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Cluster.species&quot;     &quot;Cluster.info&quot;        &quot;Plot.cluster&quot;        &quot;Cluster.merged&quot;     </span></span>
-<span id="cb3-40"><a href="#cb3-40" tabindex="-1"></a><span class="co">#&gt; [5] &quot;Cluster.height&quot;      &quot;Species.cluster.phi&quot; &quot;species&quot;             &quot;plots&quot;              </span></span>
-<span id="cb3-41"><a href="#cb3-41" tabindex="-1"></a><span class="co">#&gt; [9] &quot;vegmatrix&quot;</span></span></code></pre></div>
+<span id="cb3-39"><a href="#cb3-39" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Cluster.species&quot;     &quot;Cluster.info&quot;        &quot;Plot.cluster&quot;        &quot;Cluster.merged&quot;      &quot;Cluster.height&quot;     </span></span>
+<span id="cb3-40"><a href="#cb3-40" tabindex="-1"></a><span class="co">#&gt; [6] &quot;Species.cluster.phi&quot; &quot;species&quot;             &quot;plots&quot;               &quot;vegmatrix&quot;</span></span></code></pre></div>
 <p>The returned Cocktail object also stores the internally used, aligned
-vegetation matrix in <code>res_long$vegmatrix</code> (sparse
+vegetation matrix in <code>res_long$vegmatrix</code> (as a sparse
 <code>dgCMatrix</code>) by default
 (<code>save_vegmatrix = TRUE</code>).</p>
 <p>When using long-format input, always set
 <code>input_format = &quot;long&quot;</code> explicitly.</p>
-<p>If your long table uses different column names, provide a mapping via
-<code>long = list(...)</code>:</p>
+<p>If your long-format table uses different column names, provide a
+mapping via <code>long = list(...)</code>:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>res_long2 <span class="ot">&lt;-</span> <span class="fu">cocktail_cluster</span>(</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">vegmatrix =</span> my_long_table,</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">vegmatrix    =</span> my_long_table,</span>
 <span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>  <span class="at">input_format =</span> <span class="st">&quot;long&quot;</span>,</span>
 <span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">long =</span> <span class="fu">list</span>(</span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>    <span class="at">plot =</span> <span class="st">&quot;PlotObservationID&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>    <span class="at">plot    =</span> <span class="st">&quot;PlotObservationID&quot;</span>,</span>
 <span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>    <span class="at">species =</span> <span class="st">&quot;Harmonized_name_wfo&quot;</span>,</span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>    <span class="at">value =</span> <span class="st">&quot;Relative_cover&quot;</span></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>    <span class="at">value   =</span> <span class="st">&quot;Relative_cover&quot;</span></span>
 <span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>  ),</span>
-<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="at">progress =</span> <span class="cn">FALSE</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="at">progress     =</span> <span class="cn">FALSE</span></span>
 <span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>)</span></code></pre></div>
 <h3 id="notes-on-long-format-input">Notes on long-format input</h3>
 <ul>
 <li>Duplicate plot–species rows are aggregated using <code>sum()</code>
 and capped at 100.</li>
-<li>Empty plots (all zero after parsing/aggregation) are dropped
+<li>Empty plots (all zero after parsing and aggregation) are dropped
 automatically.</li>
 <li>The function issues warnings when duplicates are detected or empty
-plots are dropped.</li>
+plots are removed.</li>
 </ul>
 <hr />
 <h3 id="id_1-visualise-the-dendrogram">1) Visualise the dendrogram</h3>
@@ -887,11 +887,11 @@ Strong clusters by score (merge φ × log(k) × log(m))</h4>
 <hr />
 <h3 id="id_3-cluster-diagnostics-helper-functions">3) Cluster
 diagnostics (helper functions)</h3>
-<p>These two helpers allow quick inspection of clusters and cluster
-unions.</p>
-<h4 id="a-list-plots-belonging-to-clusters-or-cluster-unions">(a) List
-plots belonging to clusters or cluster unions</h4>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># example: plots belonging to the first two parent clusters</span></span>
+<p>These two helpers allow quick inspection of clusters and combinations
+of clusters.</p>
+<h4 id="a-list-plots-belonging-to-clusters-or-combinations-of-clusters">(a)
+List plots belonging to clusters or combinations of clusters</h4>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Example: plots belonging to the first and third parent clusters</span></span>
 <span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>releves_A <span class="ot">&lt;-</span> <span class="fu">releves_in_clusters</span>(res, <span class="at">clusters =</span> parent_labels[<span class="dv">1</span>])</span>
 <span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>releves_B <span class="ot">&lt;-</span> <span class="fu">releves_in_clusters</span>(res, <span class="at">clusters =</span> parent_labels[<span class="dv">3</span>])</span>
 <span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a></span>
@@ -901,14 +901,14 @@ plots belonging to clusters or cluster unions</h4>
 <span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>releves_B</span>
 <span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#&gt; $c_4</span></span>
 <span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#&gt; [1] &quot;plot3&quot; &quot;plot5&quot; &quot;plot6&quot; &quot;plot7&quot; &quot;plot8&quot;</span></span></code></pre></div>
-<p>Union groups (list input): plots belonging to <em>any node in the
-union</em>:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>union_example <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="at">group1 =</span> parent_labels[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>]</span>
+<p>Combinations of clusters (list input): plots belonging to <em>any
+cluster in the set</em>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>cluster_set_example <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="at">set1 =</span> parent_labels[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>]</span>
 <span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>)</span>
 <span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a></span>
-<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>releves_union <span class="ot">&lt;-</span> <span class="fu">releves_in_clusters</span>(res, <span class="at">clusters =</span> union_example)</span>
-<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>releves_union</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>releves_combined <span class="ot">&lt;-</span> <span class="fu">releves_in_clusters</span>(res, <span class="at">clusters =</span> cluster_set_example)</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>releves_combined</span>
 <span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a><span class="co">#&gt; $g_1_2</span></span>
 <span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a><span class="co">#&gt; [1] &quot;plot1&quot; &quot;plot2&quot; &quot;plot3&quot; &quot;plot4&quot; &quot;plot5&quot; &quot;plot6&quot; &quot;plot8&quot;</span></span></code></pre></div>
 <h4 id="b-find-clusters-that-contain-a-given-species-or-set-of-species">(b)
@@ -917,7 +917,7 @@ Find clusters that contain a given species (or set of species)</h4>
 <span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="fu">clusters_with_species</span>(res, <span class="at">species =</span> <span class="st">&quot;sp1&quot;</span>)</span>
 <span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_2&quot; &quot;c_6&quot;</span></span>
 <span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a></span>
-<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co"># Clusters that contain BOTH sp1 and sp2,</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co"># Clusters that contain both sp1 and sp2,</span></span>
 <span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co"># restricted to clusters with merge phi &gt;= 0.2</span></span>
 <span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>cl <span class="ot">&lt;-</span> <span class="fu">clusters_with_species</span>(</span>
 <span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>  res,</span>
@@ -929,7 +929,7 @@ Find clusters that contain a given species (or set of species)</h4>
 <span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>cl</span>
 <span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_2&quot;</span></span>
 <span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a></span>
-<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="co"># highlight clusters that contain both sp1 and sp2</span></span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="co"># Highlight clusters that contain both sp1 and sp2</span></span>
 <span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="fu">cocktail_plot</span>(</span>
 <span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>  <span class="at">x              =</span> res,</span>
 <span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a>  <span class="at">file           =</span> <span class="cn">NULL</span>,</span>
@@ -942,7 +942,7 @@ Find clusters that contain a given species (or set of species)</h4>
 <hr />
 <h3 id="id_4-diagnostic-species-for-selected-clusters">4) Diagnostic
 species for selected clusters</h3>
-<p>Membership species per cluster (node-constituting species):</p>
+<p>Cluster-constituting species sets:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>diag_sp_member <span class="ot">&lt;-</span> <span class="fu">species_in_clusters</span>(</span>
 <span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="at">x      =</span> res,</span>
 <span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="at">labels =</span> parent_labels</span>
@@ -957,7 +957,8 @@ species for selected clusters</h3>
 <span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a><span class="co">#&gt; </span></span>
 <span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a><span class="co">#&gt; $c_4</span></span>
 <span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a><span class="co">#&gt; [1] &quot;sp5&quot; &quot;sp6&quot; &quot;sp8&quot;</span></span></code></pre></div>
-<p>With φ-based filtering/ranking (uses Species.cluster.phi):</p>
+<p>With φ-based filtering/ranking (uses
+<code>Species.cluster.phi</code>):</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>diag_sp_phi <span class="ot">&lt;-</span> <span class="fu">species_in_clusters</span>(</span>
 <span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>  <span class="at">x                   =</span> res,</span>
 <span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>  <span class="at">labels              =</span> parent_labels,</span>
@@ -987,9 +988,9 @@ Distances between clusters (direct plot co-membership φ)</h3>
 <p><code>cluster_phi_dist()</code> computes distances between clusters
 using the φ coefficient between their <strong>binary plot-membership
 vectors</strong> (membership = <code>Plot.cluster &gt; 0</code>).
-Distance is always: <code>d(A,B) = 1 - phi(A,B)</code>.</p>
-<p>We must provide which nodes to compare (e.g. strong clusters):</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>nodes_for_dist <span class="ot">&lt;-</span> <span class="fu">select_clusters</span>(</span>
+Distance is always: <code>d(A,B) = 1 - phi(A,B)</code>. s We must
+specify which clusters to compare (e.g. selected strong clusters):</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>clusters_for_dist <span class="ot">&lt;-</span> <span class="fu">select_clusters</span>(</span>
 <span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>  <span class="at">x         =</span> res,</span>
 <span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>  <span class="at">min_score =</span> <span class="dv">0</span>,</span>
 <span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>  <span class="at">mode      =</span> <span class="st">&quot;strict&quot;</span>,</span>
@@ -999,7 +1000,7 @@ Distance is always: <code>d(A,B) = 1 - phi(A,B)</code>.</p>
 <span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a></span>
 <span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>D <span class="ot">&lt;-</span> <span class="fu">cluster_phi_dist</span>(</span>
 <span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>  <span class="at">x        =</span> res,</span>
-<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>  <span class="at">clusters =</span> nodes_for_dist</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>  <span class="at">clusters =</span> clusters_for_dist</span>
 <span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a>)</span>
 <span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a></span>
 <span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a>D</span>
@@ -1007,45 +1008,45 @@ Distance is always: <code>d(A,B) = 1 - phi(A,B)</code>.</p>
 <span id="cb14-16"><a href="#cb14-16" tabindex="-1"></a><span class="co">#&gt; c_2 0.8509288          </span></span>
 <span id="cb14-17"><a href="#cb14-17" tabindex="-1"></a><span class="co">#&gt; c_4 1.6000000 1.4472136</span></span></code></pre></div>
 <p>Hierarchical clustering of clusters:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>hc_nodes <span class="ot">&lt;-</span> <span class="fu">hclust</span>(D, <span class="at">method =</span> <span class="st">&quot;average&quot;</span>)</span>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>hc_clusters <span class="ot">&lt;-</span> <span class="fu">hclust</span>(D, <span class="at">method =</span> <span class="st">&quot;average&quot;</span>)</span>
 <span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a></span>
-<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="fu">plot</span>(hc_nodes, <span class="at">main =</span> <span class="st">&quot;Cluster dendrogram (co-membership phi distance)&quot;</span>, <span class="at">cex =</span> <span class="fl">0.7</span>)</span></code></pre></div>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="fu">plot</span>(hc_clusters, <span class="at">main =</span> <span class="st">&quot;Cluster dendrogram (co-membership phi distance)&quot;</span>, <span class="at">cex =</span> <span class="fl">0.7</span>)</span></code></pre></div>
 <img role="img" src="data:image/png;base64,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" width="100%" />
 
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a></span>
-<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>grp_nodes <span class="ot">&lt;-</span> <span class="fu">cutree</span>(hc_nodes, <span class="at">k =</span> <span class="dv">2</span>)</span>
-<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a><span class="fu">table</span>(grp_nodes)</span>
-<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co">#&gt; grp_nodes</span></span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>grp_clusters <span class="ot">&lt;-</span> <span class="fu">cutree</span>(hc_clusters, <span class="at">k =</span> <span class="dv">2</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a><span class="fu">table</span>(grp_clusters)</span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co">#&gt; grp_clusters</span></span>
 <span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a><span class="co">#&gt; 1 2 </span></span>
 <span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a><span class="co">#&gt; 2 1</span></span>
 <span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a></span>
-<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a><span class="co"># Node unions: group -&gt; vector of node labels (&quot;c_12&quot;, ...)</span></span>
-<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a>node_groups <span class="ot">&lt;-</span> <span class="fu">split</span>(<span class="fu">names</span>(grp_nodes), grp_nodes)</span>
-<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a>node_groups</span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a><span class="co"># Cluster combinations: group -&gt; vector of cluster labels (&quot;c_12&quot;, ...)</span></span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a>cluster_groups <span class="ot">&lt;-</span> <span class="fu">split</span>(<span class="fu">names</span>(grp_clusters), grp_clusters)</span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a>cluster_groups</span>
 <span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a><span class="co">#&gt; $`1`</span></span>
 <span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_1&quot; &quot;c_2&quot;</span></span>
 <span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a><span class="co">#&gt; </span></span>
 <span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a><span class="co">#&gt; $`2`</span></span>
 <span id="cb16-15"><a href="#cb16-15" tabindex="-1"></a><span class="co">#&gt; [1] &quot;c_4&quot;</span></span></code></pre></div>
 <hr />
-<h3 id="id_6-visualise-grouped-nodes-on-the-cocktail-dendrogram">6)
-Visualise grouped nodes on the Cocktail dendrogram</h3>
-<p>You can pass union groups (<code>node_groups</code>) to
-<code>cocktail_plot()</code>:</p>
+<h3 id="id_6-visualise-grouped-clusters-on-the-cocktail-dendrogram">6)
+Visualise grouped clusters on the Cocktail dendrogram</h3>
+<p>You can pass combinations of clusters (<code>cluster_groups</code>)
+to <code>cocktail_plot()</code>:</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="fu">cocktail_plot</span>(</span>
 <span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>  <span class="at">x              =</span> res,</span>
-<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>  <span class="at">clusters       =</span> node_groups,</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>  <span class="at">clusters       =</span> cluster_groups,</span>
 <span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>  <span class="at">label_clusters =</span> <span class="cn">TRUE</span>,</span>
 <span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a>  <span class="at">cex_species    =</span> <span class="fl">0.9</span></span>
 <span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>)</span></code></pre></div>
 <img role="img" src="data:image/png;base64,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" width="100%" />
 
 <hr />
-<h3 id="id_7-assign-plots-relevés-to-groups">7) Assign plots (relevés)
-to groups</h3>
+<h3 id="id_7-assign-plots-relevés-to-candidate-vegetation-units">7)
+Assign plots (relevés) to candidate vegetation units</h3>
 <p><code>assign_releves()</code> assigns each plot to one of the
-provided cluster groups using the vegetation matrix stored in the
-Cocktail object (<code>x$vegmatrix</code>).</p>
+provided candidate vegetation units using the vegetation matrix stored
+in the Cocktail object (<code>x$vegmatrix</code>).</p>
 <p><code>assign_releves()</code> uses the vegetation matrix stored
 inside the Cocktail object (<code>x$vegmatrix</code>), which is created
 by <code>cocktail_cluster()</code> when
@@ -1062,29 +1063,32 @@ species</li>
 </ul>
 <p>Candidate species logic:</p>
 <ul>
-<li>Candidate species are the cluster membership species
-(node-constituting species from <code>Cluster.species</code>).</li>
+<li>Candidate species are the cluster-constituting species from
+<code>Cluster.species</code>.</li>
 <li>For <code>&quot;phi&quot;</code> and <code>&quot;phi_cover&quot;</code>:
 <ul>
-<li><code>min_phi = NULL</code> (default): candidate species are
-node-constituting species.</li>
+<li><code>min_phi = NULL</code> (default): candidate species are the
+cluster-constituting species.</li>
 <li><code>min_phi = 0.2</code> (example): candidate species are taken
-from <strong>full fidelity profiles</strong>
-(<code>Species.cluster.phi</code>), using those with φ ≥ min_phi.</li>
+from the <strong>full fidelity profiles</strong>
+(<code>Species.cluster.phi</code>), using species with φ ≥
+<code>min_phi</code>.</li>
 </ul></li>
 </ul>
 <p>Membership restriction:</p>
 <ul>
-<li><code>plot_membership = TRUE</code> (default): only groups where the
-plot is a Cocktail member compete.</li>
-<li><code>plot_membership = FALSE</code>: all groups compete for all
-plots.</li>
+<li><code>plot_membership = TRUE</code> (default): only candidate
+vegetation units for which the plot is already a Cocktail member
+compete.</li>
+<li><code>plot_membership = FALSE</code>: all candidate vegetation units
+compete for all plots.</li>
 </ul>
-<p>Example: assign to the parent clusters at
-<code>phi_cut = 0.25</code>. The assignment <code>&quot;+&quot;</code> appears
-when a plot has an unresolved tie (two or more groups share the same
-best score):</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>assign_phi <span class="ot">&lt;-</span> <span class="fu">assign_releves</span>(</span>
+<p>Example: assign plots to the parent clusters at
+<code>phi_cut = 0.25</code>.<br />
+The assignment <code>&quot;+&quot;</code> appears when a plot has an unresolved
+tie (two or more candidate vegetation units share the same best
+score):</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>assign_count <span class="ot">&lt;-</span> <span class="fu">assign_releves</span>(</span>
 <span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>  <span class="at">x               =</span> res,</span>
 <span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>  <span class="at">strategy        =</span> <span class="st">&quot;count&quot;</span>,</span>
 <span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a>  <span class="at">clusters        =</span> parent_labels,</span>
@@ -1092,36 +1096,37 @@ best score):</p>
 <span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a>  <span class="at">min_group_size  =</span> <span class="dv">1</span><span class="dt">L</span></span>
 <span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>)</span>
 <span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a></span>
-<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a><span class="fu">table</span>(assign_phi)</span>
-<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a><span class="co">#&gt; assign_phi</span></span>
-<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a><span class="co">#&gt;   + g_4 </span></span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a><span class="fu">table</span>(assign_count)</span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a><span class="co">#&gt; assign_count</span></span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a><span class="co">#&gt;   + u_4 </span></span>
 <span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a><span class="co">#&gt;   3   5</span></span></code></pre></div>
-<p>Example: assign to union groups defined by cluster-distance
-grouping:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a>assign_unions <span class="ot">&lt;-</span> <span class="fu">assign_releves</span>(</span>
+<p>Example: assign to candidate vegetation units represented by cluster
+combinations defined from cluster-distance grouping:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a>assign_combined <span class="ot">&lt;-</span> <span class="fu">assign_releves</span>(</span>
 <span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>  <span class="at">x               =</span> res,</span>
 <span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a>  <span class="at">strategy        =</span> <span class="st">&quot;phi_cover&quot;</span>,</span>
-<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a>  <span class="at">clusters        =</span> node_groups,</span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a>  <span class="at">clusters        =</span> cluster_groups,</span>
 <span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a>  <span class="at">plot_membership =</span> <span class="cn">TRUE</span>,</span>
 <span id="cb19-6"><a href="#cb19-6" tabindex="-1"></a>  <span class="at">min_phi         =</span> <span class="fl">0.20</span>,</span>
 <span id="cb19-7"><a href="#cb19-7" tabindex="-1"></a>  <span class="at">min_group_size  =</span> <span class="dv">1</span><span class="dt">L</span></span>
 <span id="cb19-8"><a href="#cb19-8" tabindex="-1"></a>)</span>
 <span id="cb19-9"><a href="#cb19-9" tabindex="-1"></a></span>
-<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a><span class="fu">table</span>(assign_unions)</span>
-<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a><span class="co">#&gt; assign_unions</span></span>
-<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a><span class="co">#&gt; g_1_2   g_4 </span></span>
+<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a><span class="fu">table</span>(assign_combined)</span>
+<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a><span class="co">#&gt; assign_combined</span></span>
+<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a><span class="co">#&gt; u_1_2   u_4 </span></span>
 <span id="cb19-13"><a href="#cb19-13" tabindex="-1"></a><span class="co">#&gt;     4     4</span></span></code></pre></div>
 <p>The returned object is a named character vector (names = plot IDs).
 Each value is:</p>
 <ul>
-<li>a group label such as <code>&quot;g_5&quot;</code> for groups defined by a
-single node, or <code>&quot;g_5_12&quot;</code> for union groups;</li>
-<li><code>&quot;+&quot;</code> when there is an unresolved tie between
-groups;</li>
-<li><code>&quot;-&quot;</code> for groups that were collapsed because they contain
-fewer plots than <code>min_group_size</code>;</li>
-<li><code>NA</code> when no group wins for that plot (all scores 0 or no
-eligible group).</li>
+<li>a candidate vegetation unit label such as <code>&quot;u_5&quot;</code> for a
+unit defined by a single cluster, or <code>&quot;u_5_12&quot;</code> for a unit
+represented by several clusters;</li>
+<li><code>&quot;+&quot;</code> when there is an unresolved tie between candidate
+vegetation units;</li>
+<li><code>&quot;-&quot;</code> for candidate vegetation units that were collapsed
+because they contain fewer plots than <code>min_group_size</code>;</li>
+<li><code>NA</code> when no candidate vegetation unit wins for that plot
+(all scores are 0 or no eligible unit exists).</li>
 </ul>
 <hr />
 <h3 id="optional-attach-assignments-to-a-header-data-frame">(Optional)
@@ -1135,7 +1140,7 @@ as new columns:</p>
 <span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a></span>
 <span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a>hea2 <span class="ot">&lt;-</span> hea</span>
 <span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a></span>
-<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a><span class="co"># choose one grouping definition:</span></span>
+<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a><span class="co"># Choose one candidate-unit definition:</span></span>
 <span id="cb20-8"><a href="#cb20-8" tabindex="-1"></a><span class="co"># parent_labels &lt;- clusters_at_cut(res, phi_cut = 0.25, as_labels = TRUE)</span></span>
 <span id="cb20-9"><a href="#cb20-9" tabindex="-1"></a></span>
 <span id="cb20-10"><a href="#cb20-10" tabindex="-1"></a><span class="cf">for</span> (s <span class="cf">in</span> strategies) {</span>
@@ -1151,7 +1156,7 @@ as new columns:</p>
 <span id="cb20-20"><a href="#cb20-20" tabindex="-1"></a>  <span class="co"># Align by releve_number using the names of rel_assigned</span></span>
 <span id="cb20-21"><a href="#cb20-21" tabindex="-1"></a>  idx <span class="ot">&lt;-</span> <span class="fu">match</span>(hea2<span class="sc">$</span>releve_number, <span class="fu">as.integer</span>(<span class="fu">sub</span>(<span class="st">&quot;^plot&quot;</span>, <span class="st">&quot;&quot;</span>, <span class="fu">names</span>(rel_assigned))))</span>
 <span id="cb20-22"><a href="#cb20-22" tabindex="-1"></a></span>
-<span id="cb20-23"><a href="#cb20-23" tabindex="-1"></a>  colname <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;grp_&quot;</span>, s)</span>
+<span id="cb20-23"><a href="#cb20-23" tabindex="-1"></a>  colname <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;unit_&quot;</span>, s)</span>
 <span id="cb20-24"><a href="#cb20-24" tabindex="-1"></a>  hea2[[colname]] <span class="ot">&lt;-</span> rel_assigned[idx]</span>
 <span id="cb20-25"><a href="#cb20-25" tabindex="-1"></a>}</span>
 <span id="cb20-26"><a href="#cb20-26" tabindex="-1"></a></span>
@@ -1166,16 +1171,16 @@ with species–cluster phi</li>
 device)</li>
 <li><code>?clusters_at_cut</code> – parent clusters at a phi cut</li>
 <li><code>?select_clusters</code> – select strong clusters by score</li>
-<li><code>?species_in_clusters</code> – diagnostic species per node or
-node union</li>
+<li><code>?species_in_clusters</code> – diagnostic species for clusters
+or combinations of clusters</li>
 <li><code>?releves_in_clusters</code> – list plots belonging to clusters
-or union groups</li>
+or combinations of clusters</li>
 <li><code>?clusters_with_species</code> – find clusters containing
 species</li>
 <li><code>?cluster_phi_dist</code> – distances between clusters (direct
 co-membership φ)</li>
-<li><code>?assign_releves</code> – assign plots to groups using covers
-and φ</li>
+<li><code>?assign_releves</code> – assign plots to candidate vegetation
+units using covers and φ</li>
 </ul>
 <hr />
 <p>© 2025 Denys Vynokurov &amp; Helge Bruelheide. Licensed under

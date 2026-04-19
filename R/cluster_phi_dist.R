@@ -1,7 +1,7 @@
 #' Distance between Cocktail clusters based on direct co-membership phi
 #'
 #' @description
-#' Computes pairwise distances between Cocktail clusters (internal nodes) by
+#' Computes pairwise distances between Cocktail clusters by
 #' computing the \eqn{\phi} coefficient between their binary plot-membership
 #' vectors across all plots.
 #'
@@ -9,7 +9,7 @@
 #' \code{membership = (Plot.cluster > 0)}. This works for both
 #' \code{plot_values = "binary"} and \code{plot_values = "rel_cover"}, because
 #' in both cases the stored values are positive for plots meeting the Cocktail
-#' membership threshold (m-threshold) of a node.
+#' membership threshold (m-threshold) of a cluster.
 #'
 #' For clusters \eqn{A} and \eqn{B}, similarity is:
 #' \deqn{\mathrm{sim}(A,B) = \phi(A,B) \in [-1,1],}
@@ -24,10 +24,10 @@
 #' @param x A \code{"cocktail"} object from \code{\link{cocktail_cluster}},
 #'   containing at least \code{Plot.cluster} and \code{Cluster.species}.
 #'
-#' @param clusters Optional cluster identifiers (internal nodes) to be compared.
-#'   Can be numeric node IDs (e.g. \code{c(12, 27)}) or character labels
+#' @param clusters Optional cluster identifiers to be compared.
+#'   Can be numeric cluster IDs (e.g. \code{c(12, 27)}) or character labels
 #'   (e.g. \code{c("c_12","c_27")}).
-#'   If \code{NULL} or missing, all internal nodes
+#'   If \code{NULL} or missing, all clusters
 #'   \code{1:nrow(x$Cluster.species)} are used.
 #'
 #' @return A \code{\link[stats]{dist}} object with distances \eqn{d = 1-\phi}
@@ -51,6 +51,7 @@
 #' @importFrom stats as.dist
 #' @import Matrix
 #' @export
+
 cluster_phi_dist <- function(x, clusters = NULL) {
 
   ## ---- basic checks -------------------------------------------------------

@@ -1,10 +1,10 @@
 #' Find Cocktail clusters that contain given species
 #'
 #' @description
-#' Returns the internal Cocktail nodes (clusters) whose node-constituting species
+#' Returns the Cocktail clusters whose cluster-constituting species
 #' set (from \code{x$Cluster.species}) includes the queried species.
 #'
-#' This function uses \strong{topological membership} only (species in node as stored
+#' This function uses \strong{topological membership} only (species in a cluster as stored
 #' in \code{x$Cluster.species}), not fidelity weights. It is therefore stable and fast.
 #'
 #' By default, the function excludes clusters with merge height \eqn{\phi < 0}
@@ -32,19 +32,20 @@
 #' @param return Character; what to return:
 #' \itemize{
 #'   \item \code{"labels"} (default): character labels like \code{"c_12"}.
-#'   \item \code{"ids"}: integer node IDs.
-#'   \item \code{"table"}: data frame of selected nodes, including
+#'   \item \code{"ids"}: integer cluster IDs.
+#'   \item \code{"table"}: data frame of selected clusters, including
 #'     \code{h,k,m} if available.
 #' }
 #'
 #' @return Depending on \code{return}:
 #' \itemize{
-#'   \item \code{"labels"}: character vector of node labels.
-#'   \item \code{"ids"}: integer vector of node IDs.
+#'   \item \code{"labels"}: character vector of cluster labels.
+#'   \item \code{"ids"}: integer vector of cluster IDs.
 #'   \item \code{"table"}: data frame with columns \code{cluster, n_match, h, k, m}.
 #' }
 #'
 #' @export
+
 clusters_with_species <- function(
     x,
     species,

@@ -17,7 +17,7 @@
 #'   maximum \eqn{\phi} at a step, they are processed in the same order that R fills the
 #'   lower-triangular distance matrix (scan by increasing column, then row).
 #' - Stores `Plot.cluster` as a sparse `dgCMatrix` (from the **Matrix** package),
-#'   containing either binary membership or relative cover per plot and node.
+#'   containing either binary membership or relative cover per plot and cluster.
 #'   If you need a base R matrix, convert manually, e.g.:
 #'   `plot_cluster_dense <- as.matrix(res$Plot.cluster)`.
 #' - Optionally stores the internally used, cleaned and aligned vegetation matrix
@@ -29,7 +29,7 @@
 #'   (sum of cluster species covers per plot) / (total cover of the plot),
 #'   and values are zeroed for plots not meeting the m-threshold (cluster membership).
 #' - Optionally computes **species–cluster association coefficients** (`Species.cluster.phi`),
-#'   a species × nodes matrix of \eqn{\phi} between species presence and node membership,
+#'   a species × clusters matrix of \eqn{\phi} between species presence and cluster membership,
 #'   using sparse crossproducts internally.
 #'
 #' @param vegmatrix Vegetation data supplied either as:
@@ -57,8 +57,8 @@
 #'   }
 #'
 #' @param species_cluster_phi Logical; if `TRUE`, compute and return
-#'   `Species.cluster.phi`, a species × nodes matrix of \eqn{\phi} association
-#'   coefficients between species presence (from binarized `vegmatrix`) and node
+#'   `Species.cluster.phi`, a species × clusters matrix of \eqn{\phi} association
+#'   coefficients between species presence (from binarized `vegmatrix`) and cluster
 #'   membership (from `Plot.cluster > 0`). Set `species_cluster_phi = TRUE` if you plan
 #'   to use downstream functions that rely on species–cluster fidelity values,
 #'   such as `assign_releves()` with phi-based strategies or
@@ -94,10 +94,10 @@
 #'   \item `Cluster.merged`        — integer matrix (n_merges × 2): left/right children per merge
 #'                                   (negative = original species index; positive = earlier merge index).
 #'   \item `Cluster.height`        — numeric vector of length n_merges: \eqn{\phi} at each merge.
-#'   \item `Species.cluster.phi`   — (optional) numeric matrix (species × nodes) of \eqn{\phi} association
-#'                                   coefficients between each species and each internal node
-#'                                   (columns named `"c_<node_id>"`), with an attribute
-#'                                   `"group_info"` giving node sizes. `NULL` if
+#'   \item `Species.cluster.phi`   — (optional) numeric matrix (species × clusters) of \eqn{\phi} association
+#'                                   coefficients between each species and each cluster
+#'                                   (columns named `"c_<cluster_id>"`), with an attribute
+#'                                   `"group_info"` giving cluster sizes. `NULL` if
 #'                                   `species_cluster_phi = FALSE`.
 #'   \item `vegmatrix`             — (optional) `dgCMatrix` (n_plots × n_species): the internally used,
 #'                                   cleaned and aligned vegetation matrix (cover values, with `NA`
@@ -131,8 +131,8 @@
 #'   (e.g. `+, r, 2a`), the function warns and **falls back to `"binary"`** output.
 #'   If values look **ordinal** (e.g. 1..6 / 1..10), the function warns but proceeds
 #'   to compute relative cover, noting that percentage cover is recommended.
-#' - `Species.cluster.phi` is computed from a 2×2 table for every (species, node) pair,
-#'   using species presence (from binarized `vegmatrix`) and node membership
+#' - `Species.cluster.phi` is computed from a 2×2 table for every (species, cluster) pair,
+#'   using species presence (from binarized `vegmatrix`) and cluster membership
 #'   (from `Plot.cluster > 0`). Sparse crossproducts (`Matrix::crossprod`) are used
 #'   to obtain co-occurrence counts efficiently; invalid or zero denominators yield
 #'   \eqn{\phi} = 0.

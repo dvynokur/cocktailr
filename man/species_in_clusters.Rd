@@ -19,29 +19,29 @@ species_in_clusters(
 
 \item{labels}{Selection of clusters. Can be:
 \itemize{
-\item Character labels like \code{"c_2127"} or integer node IDs
-(e.g. \code{2127}), where each element defines one group; or
-\item A \strong{list} of such vectors, e.g.
+\item character labels like \code{"c_2127"} or integer cluster IDs
+(e.g. \code{2127}), where each element defines one selected cluster; or
+\item a \strong{list} of such vectors, e.g.
 \code{list(10, c(11,13), c(12,15), 14)}, where each element
-defines a union group of nodes.
+defines one combination of clusters.
 }
 Must be supplied.}
 
 \item{species_cluster_phi}{Logical; if \code{FALSE} (default), return only
-topological species per group. If \code{TRUE}, use
+topological species per selected cluster set. If \code{TRUE}, use
 \code{x$Species.cluster.phi} to attach \eqn{\phi} values as described.}
 
 \item{min_phi}{Numeric or \code{NULL}. Used only when
 \code{species_cluster_phi = TRUE}:
 \itemize{
 \item \code{NULL} (default): list only topological species, with their
-group-level \eqn{\phi};
-\item numeric: list all species with \eqn{\phi(s,g) \ge \code{min_phi}}.
+set-level \eqn{\phi};
+\item numeric: list all species with \eqn{\phi(i,g) \ge \code{min_phi}}.
 }}
 
 \item{top_k}{Optional integer >= 1. When \code{species_cluster_phi = TRUE},
-keep only the top \code{k} species per group after sorting; default
-\code{NULL} keeps all.}
+keep only the top \code{k} species per selected cluster set after sorting;
+default \code{NULL} keeps all.}
 
 \item{sort_desc}{Logical; when \code{species_cluster_phi = TRUE}, sort
 species by \eqn{\phi} decreasing if \code{TRUE} (default).}
@@ -49,28 +49,29 @@ species by \eqn{\phi} decreasing if \code{TRUE} (default).}
 \value{
 \itemize{
 \item If \code{species_cluster_phi = FALSE}: a named list of character
-vectors (species names per group).
+vectors (species names per selected cluster set).
 \item If \code{species_cluster_phi = TRUE}: a named list of data frames
-(one per group) with columns \code{species} and \code{phi}.
+(one per selected cluster set) with columns \code{species} and \code{phi}.
 }
 }
 \description{
-Return diagnostic species sets for selected Cocktail nodes or node unions.
-Works with a Cocktail object produced by \code{cocktail_cluster()} and uses:
+Return diagnostic species sets for selected Cocktail clusters or
+combinations of clusters. Works with a Cocktail object produced by
+\code{cocktail_cluster()} and uses:
 \itemize{
-\item \code{x$Cluster.species} - topological species per node (binary or
+\item \code{x$Cluster.species} — topological species per cluster (binary or
 positive weights; any value > 0 is treated as membership),
-\item optionally \code{x$Species.cluster.phi} - species-cluster \eqn{\phi}
-(if \code{species_cluster_phi = TRUE}).
+\item optionally \code{x$Species.cluster.phi} — species–cluster \eqn{\phi}
+values (if \code{species_cluster_phi = TRUE}).
 }
 
 The \code{labels} argument can be either:
 \itemize{
-\item a vector of node IDs / labels, where each element is treated as a
-separate node; or
-\item a \strong{list}, where each element is a vector of node IDs / labels,
-and each list element is treated as a \strong{union group} of those
-nodes (species are the union across the nodes in that group).
+\item a vector of cluster IDs / labels, where each element is treated as a
+separate cluster; or
+\item a \strong{list}, where each element is a vector of cluster IDs / labels,
+and each list element is treated as a \strong{combination of clusters}
+(species are the union across the clusters in that set).
 }
 
 Behaviour:
@@ -78,25 +79,25 @@ Behaviour:
 \describe{
 
 \item{\code{species_cluster_phi = FALSE}}{
-For each group, return the union of its \strong{topological species}
+For each selected cluster set, return the union of its \strong{topological species}
 (from \code{x$Cluster.species}). Output: named list of character vectors
 of species names.
 }
 
 \item{\code{species_cluster_phi = TRUE}}{
-Requires \code{x$Species.cluster.phi}. For each group (node or union),
-define group-level species-group \eqn{\phi(s,g)} as the \strong{maximum}
-across the nodes in that group:
-\deqn{\phi(s,g) = \max_{k \in \text{group}} \phi(s,k)}
+Requires \code{x$Species.cluster.phi}. For each selected cluster set,
+define set-level species association \eqn{\phi(i,g)} as the \strong{maximum}
+across the clusters in that set:
+\deqn{\phi(i,g) = \max_{k \in \text{set}} \phi(i,k)}
 Negative values are set to 0.
 
 Filtering:
 \itemize{
 \item If \code{min_phi} is \code{NULL}, the function returns all
-\strong{topological species} of the group (from
-\code{Cluster.species}), with their group-level \eqn{\phi(s,g)}.
+\strong{topological species} of the selected cluster set (from
+\code{Cluster.species}), with their set-level \eqn{\phi(i,g)}.
 \item If \code{min_phi} is provided (numeric), it returns \emph{all}
-species whose group-level \eqn{\phi(s,g) \ge \code{min_phi}},
+species whose set-level \eqn{\phi(i,g) \ge \code{min_phi}},
 regardless of whether they are topological or not.
 }
 
@@ -104,7 +105,7 @@ Species are sorted by \eqn{\phi} decreasing if \code{sort_desc = TRUE}.
 If \code{top_k} is non-NULL, only the top \code{k} species (after sorting
 and filtering) are kept.
 
-Output: named list of data frames, one per group, with columns
+Output: named list of data frames, one per selected cluster set, with columns
 \code{species} and \code{phi}.
 }
 
