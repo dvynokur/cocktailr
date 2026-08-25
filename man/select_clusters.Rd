@@ -2,94 +2,101 @@
 % Please edit documentation in R/select_clusters.R
 \name{select_clusters}
 \alias{select_clusters}
-\title{Select Cocktail clusters using a combined score based on merge phi, size, and m-threshold}
+\title{Select Cocktail clusters}
 \usage{
 select_clusters(
   x,
   clusters = NULL,
+  within_cluster = NULL,
   min_phi = 0.2,
   min_k = 1L,
-  min_score = 1,
+  min_n = 1L,
+  min_score = 0,
+  score_method = c("h_logk_logm", "h_logk", "h"),
   mode = c("strict", "top"),
   return = c("labels", "ids", "table")
 )
 }
 \arguments{
-\item{x}{A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
-containing at least \code{Cluster.species}, \code{Cluster.height}, and
-\code{Cluster.info} with columns \code{"k"} and \code{"m"}.}
+\item{x}{A \code{"cocktail"} object, usually returned by
+\code{\link{cocktail_cluster}}, containing at least
+\code{Cluster.species}, \code{Cluster.height}, \code{Cluster.info}, and
+\code{Plot.cluster}.}
 
-\item{clusters}{Optional cluster identifiers to consider. Can be a numeric
-vector of cluster indices (e.g. \code{c(12, 27)}) or a character vector of labels
-(e.g. \code{c("c_12", "c_27")}). Each element refers to a single cluster.
-If \code{NULL} or missing, all clusters \code{1:nrow(x$Cluster.species)}
-are candidates.}
+\item{clusters}{Optional vector of candidate clusters. Can be an integer
+vector of cluster IDs, e.g. \code{c(12, 27)}, or a character vector of
+labels, e.g. \code{c("c_12", "c_27")}. If \code{NULL}, all clusters are
+candidates.}
 
-\item{min_phi}{Numeric scalar; minimum merge phi required for a cluster
-to be eligible. Default \code{0.2}. Clusters with \code{Cluster.height < min_phi}
-are dropped.}
+\item{within_cluster}{Optional broader cluster within which candidate
+clusters should be selected. Can be a single integer cluster ID or a
+character label, e.g. \code{"c_12"}. Candidate clusters are identified by
+topological species-set containment in \code{x$Cluster.species}. The
+\code{within_cluster} itself is not returned as a candidate.}
 
-\item{min_k}{Integer; minimum number of species \code{k} required for a cluster
-to be eligible. Default \code{1}. This can be used to filter out very small
-clusters.}
+\item{min_phi}{Numeric. Minimum merge height, i.e. the phi value at which the
+Cocktail cluster was formed. Default \code{0.2}.}
 
-\item{min_score}{Numeric scalar; minimum score required for a cluster to be eligible.
-Default \code{1}. Set to \code{0} to allow the full selection (no score filtering).}
+\item{min_k}{Integer. Minimum number of species in a cluster. Default
+\code{1L}.}
 
-\item{mode}{Character; nesting rule used when constructing the final selection.
+\item{min_n}{Integer. Minimum number of plots satisfying the
+cluster-specific Cocktail membership rule. Default \code{1L}.}
+
+\item{min_score}{Numeric. Minimum selection score required for a cluster to
+be eligible. Default \code{0}.}
+
+\item{score_method}{Character. Method used to rank candidate clusters:
 \itemize{
-\item \code{"strict"} (default): exclude both ancestors and descendants of
-already selected clusters (no nested clusters are returned).
-\item \code{"top"}: keep only the hierarchically highest clusters among the
-eligible set (drop descendants if an eligible ancestor exists).
+\item \code{"h_logk_logm"}: \code{h * log(k) * log(m)};
+\item \code{"h_logk"}: \code{h * log(k)};
+\item \code{"h"}: merge height only.
 }}
 
-\item{return}{What to return:
+\item{mode}{Character. How nested clusters are handled during selection.
+Either \code{"strict"} or \code{"top"}.}
+
+\item{return}{Character. Type of output:
 \itemize{
-\item \code{"labels"} (default): character labels like \code{"c_12"}.
-\item \code{"ids"}: integer cluster IDs.
-\item \code{"table"}: a data frame with selected clusters and their \code{h,k,m,score}.
+\item \code{"labels"}: character labels like \code{"c_12"};
+\item \code{"ids"}: integer cluster IDs;
+\item \code{"table"}: a data frame with selected clusters and their
+\code{id}, \code{h}, \code{k}, \code{m}, \code{n}, and \code{score}.
 }}
 }
 \value{
-Depending on \code{return}:
-\itemize{
-\item \code{"labels"}: character vector of selected cluster labels.
-\item \code{"ids"}: integer vector of selected cluster IDs.
-\item \code{"table"}: data frame of selected clusters sorted by decreasing score.
-}
+Depending on \code{return}, a character vector, an integer vector, or
+a data frame with selected Cocktail clusters.
 }
 \description{
-Selects Cocktail clusters by ranking them with a combined score
-based on the Cocktail merge height \code{h}, the number of species \code{k},
-and the Cocktail membership threshold \code{m}.
+Selects Cocktail clusters from a \code{"cocktail"} object by first filtering
+candidate clusters and then resolving nested clusters according to the
+selected mode.
+}
+\details{
+Candidate clusters can be filtered by merge height (\code{min_phi}), species
+group size (\code{min_k}), number of member plots (\code{min_n}), and score
+(\code{min_score}). Optionally, selection can be restricted to clusters
+contained within a broader cluster using \code{within_cluster}.
 
-The scoring function is:
+The default score \code{"h_logk_logm"} is calculated as:
 \deqn{
 \mathrm{score}_c = h_c \cdot \log(k_c) \cdot \log(m_c),
 }
-where:
-\itemize{
-\item \code{h_c} is \code{x$Cluster.height[c]} (merge phi),
-\item \code{k_c} is \code{x$Cluster.info[c,"k"]} (cluster size),
-\item \code{m_c} is \code{x$Cluster.info[c,"m"]} (Cocktail membership threshold).
-}
-
-Clusters are selected strongest-first, using a greedy procedure in which eligible
-clusters are considered in descending score order (ties broken by larger \code{k},
-then smaller cluster ID).
+where \code{h_c} is the Cocktail merge height, \code{k_c} is the number of
+species in the cluster, and \code{m_c} is the Cocktail membership threshold.
+This score is an operational ranking criterion, not a universal measure of
+diagnostic quality. Use \code{score_method = "h_logk"} if the membership
+threshold should not affect ranking but species-group size should still be
+considered. Use \code{score_method = "h"} if selection should be based only
+on merge height, i.e. the phi value at which each cluster was formed.
 
 Nesting is controlled by \code{mode}:
 \itemize{
-\item \code{mode = "strict"} (default): \strong{no nesting allowed}.
-After selecting a cluster, \emph{all} of its strict ancestors and strict
-descendants are excluded. Therefore, the final selection contains no nested
-clusters (no strict subset/superset relationships between selected clusters
-based on topological species sets from \code{x$Cluster.species}).
-\item \code{mode = "top"}: \strong{hierarchically highest clusters among eligible}.
-All eligible clusters (\code{score >= min_score}) are first collected.
-The final selection then keeps only those clusters that are not strict
-descendants of another eligible cluster. In other words, if a cluster has an
-eligible ancestor, it is removed and the ancestor is kept.
+\item \code{mode = "strict"}: no nesting allowed. After selecting a
+cluster, all its ancestors and descendants are excluded from further
+selection.
+\item \code{mode = "top"}: keep only the hierarchically highest eligible
+clusters by excluding candidates whose ancestors are also eligible.
 }
 }

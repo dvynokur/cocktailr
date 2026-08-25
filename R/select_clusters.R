@@ -1,95 +1,92 @@
-#' Select Cocktail clusters using a combined score based on merge phi, size, and m-threshold
+#' Select Cocktail clusters
 #'
-#' @description
-#' Selects Cocktail clusters by ranking them with a combined score
-#' based on the Cocktail merge height \code{h}, the number of species \code{k},
-#' and the Cocktail membership threshold \code{m}.
+#' Selects Cocktail clusters from a \code{"cocktail"} object by first filtering
+#' candidate clusters and then resolving nested clusters according to the
+#' selected mode.
 #'
-#' The scoring function is:
+#' Candidate clusters can be filtered by merge height (\code{min_phi}), species
+#' group size (\code{min_k}), number of member plots (\code{min_n}), and score
+#' (\code{min_score}). Optionally, selection can be restricted to clusters
+#' contained within a broader cluster using \code{within_cluster}.
+#'
+#' The default score \code{"h_logk_logm"} is calculated as:
 #' \deqn{
 #' \mathrm{score}_c = h_c \cdot \log(k_c) \cdot \log(m_c),
 #' }
-#' where:
-#' \itemize{
-#'   \item \code{h_c} is \code{x$Cluster.height[c]} (merge phi),
-#'   \item \code{k_c} is \code{x$Cluster.info[c,"k"]} (cluster size),
-#'   \item \code{m_c} is \code{x$Cluster.info[c,"m"]} (Cocktail membership threshold).
-#' }
-#'
-#' Clusters are selected strongest-first, using a greedy procedure in which eligible
-#' clusters are considered in descending score order (ties broken by larger \code{k},
-#' then smaller cluster ID).
+#' where \code{h_c} is the Cocktail merge height, \code{k_c} is the number of
+#' species in the cluster, and \code{m_c} is the Cocktail membership threshold.
+#' This score is an operational ranking criterion, not a universal measure of
+#' diagnostic quality. Use \code{score_method = "h_logk"} if the membership
+#' threshold should not affect ranking but species-group size should still be
+#' considered. Use \code{score_method = "h"} if selection should be based only
+#' on merge height, i.e. the phi value at which each cluster was formed.
 #'
 #' Nesting is controlled by \code{mode}:
 #' \itemize{
-#'   \item \code{mode = "strict"} (default): \strong{no nesting allowed}.
-#'     After selecting a cluster, \emph{all} of its strict ancestors and strict
-#'     descendants are excluded. Therefore, the final selection contains no nested
-#'     clusters (no strict subset/superset relationships between selected clusters
-#'     based on topological species sets from \code{x$Cluster.species}).
-#'   \item \code{mode = "top"}: \strong{hierarchically highest clusters among eligible}.
-#'     All eligible clusters (\code{score >= min_score}) are first collected.
-#'     The final selection then keeps only those clusters that are not strict
-#'     descendants of another eligible cluster. In other words, if a cluster has an
-#'     eligible ancestor, it is removed and the ancestor is kept.
+#'   \item \code{mode = "strict"}: no nesting allowed. After selecting a
+#'   cluster, all its ancestors and descendants are excluded from further
+#'   selection.
+#'   \item \code{mode = "top"}: keep only the hierarchically highest eligible
+#'   clusters by excluding candidates whose ancestors are also eligible.
 #' }
 #'
-#' @param x A \code{"cocktail"} object (result of \code{\link{cocktail_cluster}}),
-#'   containing at least \code{Cluster.species}, \code{Cluster.height}, and
-#'   \code{Cluster.info} with columns \code{"k"} and \code{"m"}.
-#'
-#' @param clusters Optional cluster identifiers to consider. Can be a numeric
-#'   vector of cluster indices (e.g. \code{c(12, 27)}) or a character vector of labels
-#'   (e.g. \code{c("c_12", "c_27")}). Each element refers to a single cluster.
-#'   If \code{NULL} or missing, all clusters \code{1:nrow(x$Cluster.species)}
-#'   are candidates.
-#'
-#' @param min_phi Numeric scalar; minimum merge phi required for a cluster
-#'   to be eligible. Default \code{0.2}. Clusters with \code{Cluster.height < min_phi}
-#'   are dropped.
-#'
-#' @param min_k Integer; minimum number of species \code{k} required for a cluster
-#'   to be eligible. Default \code{1}. This can be used to filter out very small
-#'   clusters.
-#'
-#' @param min_score Numeric scalar; minimum score required for a cluster to be eligible.
-#'   Default \code{1}. Set to \code{0} to allow the full selection (no score filtering).
-#'
-#' @param mode Character; nesting rule used when constructing the final selection.
+#' @param x A \code{"cocktail"} object, usually returned by
+#'   \code{\link{cocktail_cluster}}, containing at least
+#'   \code{Cluster.species}, \code{Cluster.height}, \code{Cluster.info}, and
+#'   \code{Plot.cluster}.
+#' @param clusters Optional vector of candidate clusters. Can be an integer
+#'   vector of cluster IDs, e.g. \code{c(12, 27)}, or a character vector of
+#'   labels, e.g. \code{c("c_12", "c_27")}. If \code{NULL}, all clusters are
+#'   candidates.
+#' @param within_cluster Optional broader cluster within which candidate
+#'   clusters should be selected. Can be a single integer cluster ID or a
+#'   character label, e.g. \code{"c_12"}. Candidate clusters are identified by
+#'   topological species-set containment in \code{x$Cluster.species}. The
+#'   \code{within_cluster} itself is not returned as a candidate.
+#' @param min_phi Numeric. Minimum merge height, i.e. the phi value at which the
+#'   Cocktail cluster was formed. Default \code{0.2}.
+#' @param min_k Integer. Minimum number of species in a cluster. Default
+#'   \code{1L}.
+#' @param min_n Integer. Minimum number of plots satisfying the
+#'   cluster-specific Cocktail membership rule. Default \code{1L}.
+#' @param min_score Numeric. Minimum selection score required for a cluster to
+#'   be eligible. Default \code{0}.
+#' @param score_method Character. Method used to rank candidate clusters:
 #'   \itemize{
-#'     \item \code{"strict"} (default): exclude both ancestors and descendants of
-#'       already selected clusters (no nested clusters are returned).
-#'     \item \code{"top"}: keep only the hierarchically highest clusters among the
-#'       eligible set (drop descendants if an eligible ancestor exists).
+#'     \item \code{"h_logk_logm"}: \code{h * log(k) * log(m)};
+#'     \item \code{"h_logk"}: \code{h * log(k)};
+#'     \item \code{"h"}: merge height only.
+#'   }
+#' @param mode Character. How nested clusters are handled during selection.
+#'   Either \code{"strict"} or \code{"top"}.
+#' @param return Character. Type of output:
+#'   \itemize{
+#'     \item \code{"labels"}: character labels like \code{"c_12"};
+#'     \item \code{"ids"}: integer cluster IDs;
+#'     \item \code{"table"}: a data frame with selected clusters and their
+#'     \code{id}, \code{h}, \code{k}, \code{m}, \code{n}, and \code{score}.
 #'   }
 #'
-#' @param return What to return:
-#'   \itemize{
-#'     \item \code{"labels"} (default): character labels like \code{"c_12"}.
-#'     \item \code{"ids"}: integer cluster IDs.
-#'     \item \code{"table"}: a data frame with selected clusters and their \code{h,k,m,score}.
-#'   }
-#'
-#' @return Depending on \code{return}:
-#' \itemize{
-#'   \item \code{"labels"}: character vector of selected cluster labels.
-#'   \item \code{"ids"}: integer vector of selected cluster IDs.
-#'   \item \code{"table"}: data frame of selected clusters sorted by decreasing score.
-#' }
+#' @return Depending on \code{return}, a character vector, an integer vector, or
+#'   a data frame with selected Cocktail clusters.
 #'
 #' @export
 
 select_clusters <- function(
     x,
     clusters = NULL,
+    within_cluster = NULL,
     min_phi = 0.2,
     min_k = 1L,
-    min_score = 1,
+    min_n = 1L,
+    min_score = 0,
+    score_method = c("h_logk_logm", "h_logk", "h"),
     mode = c("strict", "top"),
     return = c("labels", "ids", "table")
 ) {
   return <- match.arg(return)
-  mode   <- match.arg(mode)
+  mode <- match.arg(mode)
+  score_method <- match.arg(score_method)
 
   ## ---- basic checks -------------------------------------------------------
   if (!is.list(x) || !"Cluster.species" %in% names(x)) {
@@ -104,106 +101,162 @@ select_clusters <- function(
   if (!all(c("k", "m") %in% colnames(x$Cluster.info))) {
     stop("`x$Cluster.info` must contain columns 'k' and 'm'.")
   }
+  if (!"Plot.cluster" %in% names(x) || is.null(x$Plot.cluster)) {
+    stop("`x$Plot.cluster` is missing; cannot compute the number of member plots `n`.")
+  }
 
   CS <- x$Cluster.species
-  H  <- x$Cluster.height
+  H <- x$Cluster.height
   KI <- x$Cluster.info
+  PC <- x$Plot.cluster
 
   if (!is.matrix(CS)) stop("`x$Cluster.species` must be a matrix.")
   n_nodes <- nrow(CS)
 
+  if (length(H) < n_nodes) {
+    stop("`x$Cluster.height` must have length >= nrow(x$Cluster.species).")
+  }
+  if (ncol(PC) < n_nodes) {
+    stop("`x$Plot.cluster` must have at least nrow(x$Cluster.species) columns.")
+  }
+
   if (!is.numeric(min_phi) || length(min_phi) != 1L || is.na(min_phi)) {
     stop("`min_phi` must be a single numeric value.")
   }
-
   if (!is.numeric(min_k) || length(min_k) != 1L || is.na(min_k)) {
     stop("`min_k` must be a single integer-like value.")
   }
-  min_k <- as.integer(min_k)
-
+  if (!is.numeric(min_n) || length(min_n) != 1L || is.na(min_n)) {
+    stop("`min_n` must be a single integer-like value.")
+  }
   if (!is.numeric(min_score) || length(min_score) != 1L || is.na(min_score)) {
     stop("`min_score` must be a single numeric value.")
   }
 
-  if (length(H) < n_nodes) {
-    stop("`x$Cluster.height` must have length >= nrow(x$Cluster.species).")
+  min_k <- as.integer(min_k)
+  min_n <- as.integer(min_n)
+
+  ## ---- helper functions ---------------------------------------------------
+  parse_cluster_ids <- function(z, arg_name = "clusters") {
+    if (is.null(z)) return(integer(0))
+    if (is.list(z)) z <- unlist(z, use.names = FALSE)
+
+    if (is.character(z)) {
+      out <- suppressWarnings(as.integer(sub("^c_", "", z)))
+    } else {
+      out <- suppressWarnings(as.integer(z))
+    }
+
+    out <- out[is.finite(out) & out > 0L & out <= n_nodes]
+    out <- sort(unique(out))
+
+    if (!length(out)) {
+      stop("No valid cluster IDs found in `", arg_name, "` after filtering to 1..", n_nodes, ".")
+    }
+    out
+  }
+
+  species_set <- function(node) which(CS[node, ] > 0L)
+
+  set_is_subset <- function(a, b) {
+    Sa <- species_set(a)
+    Sb <- species_set(b)
+    if (length(Sa) == 0L) return(TRUE)
+    if (length(Sa) > length(Sb)) return(FALSE)
+    all(Sa %in% Sb)
+  }
+
+  set_is_strict_subset <- function(a, b) {
+    set_is_subset(a, b) && !set_is_subset(b, a)
+  }
+
+  compute_score <- function(h, k, m, method) {
+    score <- switch(
+      method,
+      h_logk_logm = h * log(k) * log(m),
+      h_logk      = h * log(k),
+      h           = h
+    )
+    score[!is.finite(score)] <- 0
+    score
   }
 
   ## ---- parse clusters argument into candidate IDs -------------------------
   if (missing(clusters) || is.null(clusters)) {
     ids <- seq_len(n_nodes)
   } else {
-    if (is.list(clusters)) clusters <- unlist(clusters, use.names = FALSE)
-    if (is.character(clusters)) {
-      ids <- as.integer(sub("^c_", "", clusters))
-    } else {
-      ids <- as.integer(clusters)
+    ids <- parse_cluster_ids(clusters, "clusters")
+  }
+
+  ## ---- optionally restrict to descendants of within_cluster ---------------
+  if (!is.null(within_cluster)) {
+    parent <- parse_cluster_ids(within_cluster, "within_cluster")
+    if (length(parent) != 1L) {
+      stop("`within_cluster` must identify exactly one cluster.")
     }
-    ids <- ids[is.finite(ids) & ids > 0L & ids <= n_nodes]
-    ids <- sort(unique(ids))
+    parent <- parent[[1L]]
+
+    ids <- ids[vapply(ids, function(i) set_is_strict_subset(i, parent), logical(1))]
+    if (!length(ids)) {
+      stop("No candidate clusters are strict descendants of `within_cluster = c_", parent, "`.")
+    }
   }
 
-  if (!length(ids)) {
-    stop("No valid cluster IDs found in `clusters` (after filtering to 1..", n_nodes, ").")
-  }
-
-  ## ---- filter by min_phi --------------------------------------------------
-  ids <- ids[H[ids] >= min_phi]
-  if (!length(ids)) {
-    stop("No clusters remain after applying `min_phi = ", min_phi, "`.")
-  }
-
-  ## ---- filter by min_k ----------------------------------------------------
-  k_all <- as.numeric(KI[ids, "k"])
-  keep_k <- is.finite(k_all) & (k_all >= min_k)
-  ids <- ids[keep_k]
-  if (!length(ids)) {
-    stop("No clusters remain after applying `min_k = ", min_k, "`.")
-  }
-
-  ## ---- compute score = h * log(k) * log(m) -------------------------------
+  ## ---- compute candidate statistics ---------------------------------------
   h <- as.numeric(H[ids])
   k <- as.numeric(KI[ids, "k"])
   m <- as.numeric(KI[ids, "m"])
+  n <- as.numeric(Matrix::colSums(PC[, ids, drop = FALSE] > 0))
 
-  # guard against weird values
   h[!is.finite(h)] <- 0
   k[!is.finite(k) | k < 0] <- 0
   m[!is.finite(m) | m < 0] <- 0
+  n[!is.finite(n) | n < 0] <- 0
 
-  score <- h * log(k) * log(m)
+  score <- compute_score(h, k, m, score_method)
 
-  ## ---- filter by min_score ------------------------------------------------
-  keep_score <- is.finite(score) & (score >= min_score)
-  ids   <- ids[keep_score]
-  h     <- h[keep_score]
-  k     <- k[keep_score]
-  m     <- m[keep_score]
-  score <- score[keep_score]
+  cand_tbl <- data.frame(
+    cluster = paste0("c_", ids),
+    id = ids,
+    h = h,
+    k = k,
+    m = m,
+    n = n,
+    score = score,
+    stringsAsFactors = FALSE
+  )
 
-  if (!length(ids)) {
-    stop("No clusters remain after applying `min_score = ", min_score, "`.")
+  ## ---- filtering ----------------------------------------------------------
+  keep <- cand_tbl$h >= min_phi &
+    cand_tbl$k >= min_k &
+    cand_tbl$n >= min_n &
+    cand_tbl$score >= min_score
+
+  cand_tbl <- cand_tbl[keep, , drop = FALSE]
+
+  if (!nrow(cand_tbl)) {
+    stop(
+      "No clusters remain after applying selection filters: ",
+      "min_phi = ", min_phi, ", min_k = ", min_k,
+      ", min_n = ", min_n, ", min_score = ", min_score, "."
+    )
   }
 
-  ## ---- tie-breaking: prefer larger k, then lower node id -------------------
-  ord <- order(score, k, ids, decreasing = c(TRUE, TRUE, FALSE), na.last = NA)
-  cand <- ids[ord]
-
-  ## ---- precompute species sets for nesting checks --------------------------
-  sp_sets <- lapply(cand, function(node) which(CS[node, ] > 0L))
-  names(sp_sets) <- as.character(cand)
-
-  is_subset <- function(a, b) {
-    Sa <- sp_sets[[as.character(a)]]
-    Sb <- sp_sets[[as.character(b)]]
-    if (length(Sa) == 0L) return(TRUE)
-    if (length(Sa) > length(Sb)) return(FALSE)
-    all(Sa %in% Sb)
-  }
+  ## ---- ordering: score -> h -> k -> n -> m -> smaller id ------------------
+  ord <- order(
+    -cand_tbl$score,
+    -cand_tbl$h,
+    -cand_tbl$k,
+    -cand_tbl$n,
+    -cand_tbl$m,
+    cand_tbl$id,
+    na.last = NA
+  )
+  cand_tbl <- cand_tbl[ord, , drop = FALSE]
+  cand <- cand_tbl$id
 
   ## ---- selection ----------------------------------------------------------
   if (mode == "strict") {
-    # greedy selection; exclude ancestors and descendants of already selected nodes
     selected <- integer(0)
 
     for (node in cand) {
@@ -212,13 +265,12 @@ select_clusters <- function(
         next
       }
 
-      node_is_descendant <- any(vapply(selected, function(s) is_subset(node, s), logical(1)))
-      node_is_ancestor   <- any(vapply(selected, function(s) is_subset(s, node), logical(1)))
+      node_is_descendant <- any(vapply(selected, function(s) set_is_subset(node, s), logical(1)))
+      node_is_ancestor <- any(vapply(selected, function(s) set_is_subset(s, node), logical(1)))
 
       if (node_is_descendant || node_is_ancestor) next
       selected <- c(selected, node)
     }
-
   } else {
     # mode == "top": keep only hierarchically highest clusters among eligible candidates
     selected <- cand
@@ -228,8 +280,7 @@ select_clusters <- function(
       if (drop[i]) next
       for (j in seq_along(selected)) {
         if (i == j || drop[j]) next
-        # if selected[j] is a strict descendant of selected[i], drop it
-        if (is_subset(selected[j], selected[i]) && !is_subset(selected[i], selected[j])) {
+        if (set_is_strict_subset(selected[j], selected[i])) {
           drop[j] <- TRUE
         }
       }
@@ -238,7 +289,7 @@ select_clusters <- function(
     selected <- selected[!drop]
   }
 
-  ## ---- return --------------------------------------------------------------
+  ## ---- return -------------------------------------------------------------
   if (return == "ids") {
     return(selected)
   }
@@ -247,15 +298,7 @@ select_clusters <- function(
     return(paste0("c_", selected))
   }
 
-  # return == "table"
-  out <- data.frame(
-    cluster = paste0("c_", ids),
-    h       = h,
-    k       = k,
-    m       = m,
-    score   = score,
-    stringsAsFactors = FALSE
-  )
-  out <- out[match(paste0("c_", selected), out$cluster), , drop = FALSE]
+  out <- cand_tbl[match(selected, cand_tbl$id), , drop = FALSE]
+  rownames(out) <- NULL
   out
 }
