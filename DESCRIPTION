@@ -1,6 +1,6 @@
 Package: cocktailr
 Title: Cocktail clustering for diagnostic species-based vegetation classification
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: c(
     person("Denys", "Vynokurov", role = c("aut", "cre"),
            email = "denys.vynokurov@gmail.com",

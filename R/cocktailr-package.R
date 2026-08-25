@@ -16,7 +16,7 @@
 #'   \item \code{\link{species_in_clusters}} — diagnostic species lists for clusters or cluster unions.
 #'   \item \code{\link{releves_in_clusters}} — list plots (relevés) with membership in clusters or cluster unions.
 #'   \item \code{\link{clusters_with_species}} — find clusters associated with a given species (or set of species).
-#'   \item \code{\link{cluster_phi_dist}} — distances between clusters based on plot co-membership φ.
+#'   \item \code{\link{cluster_dist}} — distances between clusters based on containment or plot co-membership φ.
 #'   \item \code{\link{assign_releves}} — assign plots (relevés) to groups using cover- and φ-based strategies.
 #' }
 #'
@@ -27,7 +27,7 @@
 #'   \item Select clusters: \code{\link{clusters_at_cut}} or \code{\link{select_clusters}}
 #'   \item Diagnose clusters: \code{\link{species_in_clusters}}, \code{\link{releves_in_clusters}},
 #'         \code{\link{clusters_with_species}}
-#'   \item Compare clusters (optional): \code{\link{cluster_phi_dist}}
+#'   \item Compare clusters (optional): \code{\link{cluster_dist}}
 #'   \item Assign plots to groups: \code{\link{assign_releves}}
 #' }
 #'
