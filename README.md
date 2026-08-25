@@ -10,14 +10,14 @@ cocktailr
     - [Long-format input](#long-format-input)
     - [Notes on long-format input](#notes-on-long-format-input)
     - [1) Visualize the dendrogram](#1-visualize-the-dendrogram)
-    - [2) Select clusters at a φ cut **or** select strongest clusters by
-      score](#2-select-clusters-at-a-φ-cut-or-select-strongest-clusters-by-score)
+    - [2) Select clusters at a φ cut **or** select clusters by
+      score](#2-select-clusters-at-a-φ-cut-or-select-clusters-by-score)
     - [3) Cluster diagnostics (helper
       functions)](#3-cluster-diagnostics-helper-functions)
     - [4) Diagnostic species for selected
       clusters](#4-diagnostic-species-for-selected-clusters)
-    - [5) Distances between clusters (direct plot co-membership
-      φ)](#5-distances-between-clusters-direct-plot-co-membership-φ)
+    - [5) Distances and relationships between
+      clusters](#5-distances-and-relationships-between-clusters)
     - [6) Visualize grouped clusters on the Cocktail
       dendrogram](#6-visualize-grouped-clusters-on-the-cocktail-dendrogram)
     - [7) Assign plots (relevés) to candidate vegetation
@@ -62,8 +62,9 @@ The package implements:
   clusters** (`releves_in_clusters()`).
 - Finding **clusters that contain a given species (or set of species)**
   (`clusters_with_species()`).
-- **Distances between clusters** based on direct plot co-membership φ
-  (`cluster_phi_dist()`).
+- **Distances and relationships between clusters** based on
+  plot-membership containment or direct plot co-membership φ
+  (`cluster_dist()`).
 - **Assignment of plots (relevés) to candidate vegetation units** using
   cover- and φ-based strategies (`assign_releves()`).
 
@@ -284,7 +285,7 @@ cocktail_plot(
 
 ------------------------------------------------------------------------
 
-### 2) Select clusters at a φ cut **or** select strongest clusters by score
+### 2) Select clusters at a φ cut **or** select clusters by score
 
 #### Option A: Parent clusters at a φ cut
 
@@ -301,39 +302,50 @@ parent_labels
 #> [1] "c_1" "c_2" "c_4"
 ```
 
-#### Option B: Strong clusters by score (merge φ × log(k) × log(m))
+#### Option B: Select clusters by score
 
 ``` r
 strong_labels <- select_clusters(
-  x         = res,
-  min_phi   = 0.20,
-  min_k     = 1,
-  min_score = 0.3,
-  mode      = "strict",
-  return    = "labels"
+  x            = res,
+  min_phi      = 0.20,
+  min_k        = 1,
+  min_n        = 1,
+  min_score    = 0,
+  score_method = "h_logk_logm",
+  mode         = "strict",
+  return       = "labels"
 )
 
 strong_labels
 #> [1] "c_4" "c_1" "c_2"
 ```
 
+The default score is `h * log(k) * log(m)`, where `h` is the merge
+height, `k` is the number of species in the cluster and `m` is the
+Cocktail membership threshold. This is an operational ranking criterion.
+Use `score_method = "h_logk"` to rank clusters without the membership
+threshold, or `score_method = "h"` to rank clusters only by merge
+height.
+
 (If you want the full score table:)
 
 ``` r
 strong_table <- select_clusters(
-  x         = res,
-  min_phi   = 0.20,
-  min_k     = 1,
-  min_score = 0.3,
-  mode      = "strict",
-  return    = "table"
+  x            = res,
+  min_phi      = 0.20,
+  min_k        = 1,
+  min_n        = 1,
+  min_score    = 0,
+  score_method = "h_logk_logm",
+  mode         = "strict",
+  return       = "table"
 )
 
 strong_table
-#>   cluster         h k m     score
-#> 3     c_4 0.4879500 3 3 0.5889308
-#> 1     c_1 0.7453560 2 2 0.3581085
-#> 2     c_2 0.6546537 2 2 0.3145303
+#>   cluster id         h k m n     score
+#> 1     c_4  4 0.4879500 3 3 5 0.5889308
+#> 2     c_1  1 0.7453560 2 2 5 0.3581085
+#> 3     c_2  2 0.6546537 2 2 6 0.3145303
 ```
 
 ------------------------------------------------------------------------
@@ -456,33 +468,69 @@ diag_sp_phi
 
 ------------------------------------------------------------------------
 
-### 5) Distances between clusters (direct plot co-membership φ)
+### 5) Distances and relationships between clusters
 
-`cluster_phi_dist()` computes distances between clusters using the φ
-coefficient between their **binary plot-membership vectors** (membership
-= `Plot.cluster > 0`). Distance is always: `d(A,B) = 1 - phi(A,B)`.
+`cluster_dist()` computes distances between clusters from their binary
+plot-membership vectors (`membership = Plot.cluster > 0`).
 
-We must specify which clusters to compare (e.g. selected strong
-clusters):
+Two methods are available:
+
+- `method = "containment"`: distance is `1 - max_containment`, where
+  `max_containment` is the larger of the two directional containment
+  values between a pair of clusters. This is the default and is useful
+  for identifying nested or partly nested relationships among Cocktail
+  groups.
+- `method = "phi"`: distance is `1 - phi`, where `phi` is the phi
+  coefficient between binary plot-membership vectors.
+
+We must specify which clusters to compare, for example selected
+clusters:
 
 ``` r
 clusters_for_dist <- select_clusters(
-  x         = res,
-  min_score = 0,
-  mode      = "strict",
-  return    = "labels"
+  x            = res,
+  min_phi      = 0.20,
+  min_k        = 1,
+  min_n        = 1,
+  min_score    = 0,
+  score_method = "h_logk_logm",
+  mode         = "strict",
+  return       = "labels"
 )
 
-
-D <- cluster_phi_dist(
+D <- cluster_dist(
   x        = res,
-  clusters = clusters_for_dist
+  clusters = clusters_for_dist,
+  method   = "containment"
 )
 
 D
-#>           c_1       c_2
-#> c_2 0.8509288          
-#> c_4 1.6000000 1.4472136
+#>     c_1 c_2
+#> c_2 0.2    
+#> c_4 0.6 0.4
+```
+
+The pairwise relationship table can be inspected with:
+
+``` r
+cluster_dist(
+  x        = res,
+  clusters = clusters_for_dist,
+  method   = "containment",
+  return   = "table"
+)
+#>   cluster_1 cluster_2 id_1 id_2 n_1 n_2 shared_n containment_1_in_2
+#> 1       c_1       c_2    1    2   5   6        4                0.8
+#> 2       c_1       c_4    1    4   5   5        2                0.4
+#> 3       c_2       c_4    2    4   6   5        3                0.5
+#>   containment_2_in_1 containment_max containment_min   jaccard        phi
+#> 1          0.6666667             0.8       0.6666667 0.5714286  0.1490712
+#> 2          0.4000000             0.4       0.4000000 0.2500000 -0.6000000
+#> 3          0.6000000             0.6       0.5000000 0.3750000 -0.4472136
+#>        method distance
+#> 1 containment      0.2
+#> 2 containment      0.6
+#> 3 containment      0.4
 ```
 
 Hierarchical clustering of clusters:
@@ -490,10 +538,10 @@ Hierarchical clustering of clusters:
 ``` r
 hc_clusters <- hclust(D, method = "average")
 
-plot(hc_clusters, main = "Cluster dendrogram (co-membership phi distance)", cex = 0.7)
+plot(hc_clusters, main = "Cluster dendrogram (containment distance)", cex = 0.7)
 ```
 
-<img src="man/figures/README-typical-phi-dist-hclust-1.png" width="100%" />
+<img src="man/figures/README-typical-cluster-dist-hclust-1.png" width="100%" />
 
 ``` r
 
@@ -587,7 +635,7 @@ table(assign_count)
 ```
 
 Example: assign to candidate vegetation units represented by cluster
-combinations defined from cluster-distance grouping:
+combinations defined from containment-distance grouping:
 
 ``` r
 assign_combined <- assign_releves(
@@ -683,8 +731,7 @@ See function help for details:
 - `?releves_in_clusters` – list plots belonging to clusters or
   combinations of clusters
 - `?clusters_with_species` – find clusters containing species
-- `?cluster_phi_dist` – distances between clusters (direct co-membership
-  φ)
+- `?cluster_dist` – distances between clusters (direct co-membership φ)
 - `?assign_releves` – assign plots to candidate vegetation units using
   covers and φ
 
