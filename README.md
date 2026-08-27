@@ -16,8 +16,8 @@ cocktailr
       functions)](#3-cluster-diagnostics-helper-functions)
     - [4) Diagnostic species for selected
       clusters](#4-diagnostic-species-for-selected-clusters)
-    - [5) Distances and relationships between
-      clusters](#5-distances-and-relationships-between-clusters)
+    - [5) Relationships between
+      clusters](#5-relationships-between-clusters)
     - [6) Visualize grouped clusters on the Cocktail
       dendrogram](#6-visualize-grouped-clusters-on-the-cocktail-dendrogram)
     - [7) Assign plots (relevés) to candidate vegetation
@@ -108,7 +108,7 @@ For reproducible analyses based on a tagged release, install a specific
 version, for example:
 
 ``` r
-remotes::install_github("dvynokur/cocktailr@v0.1.0")
+remotes::install_github("dvynokur/cocktailr@v0.1.1")
 ```
 
 This command will work after the corresponding GitHub release/tag has
@@ -126,12 +126,10 @@ A small end-to-end example on a toy **plots × species** matrix, showing:
 
 1.  Cocktail clustering  
 2.  Dendrogram plotting  
-3.  Selection of clusters at a φ cut **or** selection of strongest
-    clusters by score  
-4.  Cluster inspection utilities  
-5.  Species lists  
-6.  Distances between clusters  
-7.  Plot assignment to candidate vegetation units
+3.  Selection of candidate diagnostic species groups  
+4.  Relationships among selected groups  
+5.  Inspection of selected groups and diagnostic species  
+6.  Plot assignment to candidate vegetation units
 
 ``` r
 library(cocktailr)
@@ -470,7 +468,7 @@ diag_sp_phi
 
 ------------------------------------------------------------------------
 
-### 5) Distances and relationships between clusters
+### 5) Relationships between clusters
 
 `cluster_dist()` computes distances between clusters from their binary
 plot-membership vectors (`membership = Plot.cluster > 0`).
@@ -733,7 +731,8 @@ See function help for details:
 - `?releves_in_clusters` – list plots belonging to clusters or
   combinations of clusters
 - `?clusters_with_species` – find clusters containing species
-- `?cluster_dist` – distances between clusters (direct co-membership φ)
+- `?cluster_dist` – distances between clusters based on plot-membership
+  containment or direct co-membership φ
 - `?assign_releves` – assign plots to candidate vegetation units using
   covers and φ
 

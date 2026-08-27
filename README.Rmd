@@ -79,7 +79,7 @@ library(cocktailr)
 For reproducible analyses based on a tagged release, install a specific version, for example:
 
 ```r
-remotes::install_github("dvynokur/cocktailr@v0.1.0")
+remotes::install_github("dvynokur/cocktailr@v0.1.1")
 ```
 This command will work after the corresponding GitHub release/tag has been created.
 
@@ -93,11 +93,10 @@ A small end-to-end example on a toy **plots × species** matrix, showing:
 
 1. Cocktail clustering  
 2. Dendrogram plotting  
-3. Selection of clusters at a φ cut **or** selection of strongest clusters by score  
-4. Cluster inspection utilities  
-5. Species lists  
-6. Distances between clusters  
-7. Plot assignment to candidate vegetation units  
+3. Selection of candidate diagnostic species groups  
+4. Relationships among selected groups  
+5. Inspection of selected groups and diagnostic species  
+6. Plot assignment to candidate vegetation units  
 
 ```{r typical-workflow}
 library(cocktailr)
@@ -355,7 +354,7 @@ diag_sp_phi
 
 ***
 
-### 5) Distances and relationships between clusters
+### 5) Relationships between clusters
 
 `cluster_dist()` computes distances between clusters from their binary
 plot-membership vectors (`membership = Plot.cluster > 0`).
@@ -549,7 +548,7 @@ See function help for details:
 - `?species_in_clusters` – diagnostic species for clusters or combinations of clusters
 - `?releves_in_clusters` – list plots belonging to clusters or combinations of clusters
 - `?clusters_with_species` – find clusters containing species
-- `?cluster_dist` – distances between clusters (direct co-membership φ)
+- `?cluster_dist` – distances between clusters based on plot-membership containment or direct co-membership φ
 - `?assign_releves` – assign plots to candidate vegetation units using covers and φ
 
 ***
