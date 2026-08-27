@@ -37,7 +37,8 @@ If you use `cocktailr`, please cite the GitHub repository and the original Cockt
 
 ## Overview
 
-**cocktailr** provides fast and reproducible *Cocktail* clustering for vegetation-plot data. It identifies groups of co-occurring species from **plots × species** tables or **long-format vegetation tables** (plot–species–value) and supports their use in diagnostic species-based vegetation classification.
+**cocktailr** provides fast and reproducible *Cocktail* clustering for vegetation-plot data. It identifies groups of co-occurring species from **plots × species** tables or **long-format vegetation tables** (plot–species–value) and supports their use in diagnostic species-based vegetation classification. 
+A possible mnemonic for **cocktailr** is **CO-occurrence Clustering with Known Thresholds for Assignment, Interpretation, and Labelling in R**.
 
 The package implements:
 

@@ -45,7 +45,9 @@ the package and workflow has been prepared for submission.
 vegetation-plot data. It identifies groups of co-occurring species from
 **plots × species** tables or **long-format vegetation tables**
 (plot–species–value) and supports their use in diagnostic species-based
-vegetation classification.
+vegetation classification. A possible mnemonic for **cocktailr** is
+**CO-occurrence Clustering with Known Thresholds for Assignment,
+Interpretation, and Labelling in R**.
 
 The package implements:
 
